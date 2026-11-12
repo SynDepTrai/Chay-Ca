@@ -3,333 +3,453 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đại Chiến Trộm Cá - Map Phức Tạp</title>
+    <title>Đại Chiến Trộm Cá 3D</title>
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #1a252f;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
-        canvas {
-            background-color: #55aa55; /* Màu cỏ nền */
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            margin-top: 10px;
-            border: 2px solid #34495e;
-        }
-        #ui { margin-top: 10px; text-align: center; }
-        .instructions { font-size: 14px; color: #bdc3c7; margin-top: 10px; max-width: 1000px; text-align: center; }
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        /* Tâm ngắm */
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: white; }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+        /* Màn hình Menu / Overlay */
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; pointer-events: auto; }
+        h1 { font-size: 50px; margin-bottom: 10px; text-shadow: 2px 2px 0 #000; }
+        p.instructions { font-size: 18px; text-align: center; max-width: 600px; line-height: 1.6; margin-bottom: 30px; }
+        button { padding: 15px 40px; font-size: 24px; font-weight: bold; background: #e74c3c; color: white; border: 4px solid #c0392b; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #c0392b; transform: scale(1.05); }
+
+        /* HUD (Thông tin trên màn hình) */
+        #hud { position: absolute; top: 20px; left: 20px; color: white; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black; }
+        #ticket-bar-container { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background: rgba(0,0,0,0.5); border: 2px solid #fff; display: none; }
+        #ticket-bar { width: 0%; height: 100%; background: #f1c40f; transition: width 0.1s; }
+        #ticket-text { position: absolute; width: 100%; text-align: center; line-height: 30px; color: white; font-weight: bold; font-size: 16px; text-shadow: 1px 1px 2px black;}
     </style>
+    <!-- Nạp thư viện Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <div id="ui">
-        <h2>Trạng thái: <span id="status">Bắt đầu đi câu...</span></h2>
-    </div>
-    
-    <canvas id="gameCanvas" width="1000" height="700"></canvas>
+    <div id="ui-layer">
+        <div id="crosshair"></div>
+        <div id="hud">
+            Trạng thái: <span id="status-text" style="color:#2ecc71;">Đang tẩu thoát</span><br>
+            Tốc độ: <span id="speed-text">Đi bộ</span><br>
+            Số bảo vệ: <span id="guard-count">0</span>
+        </div>
+        
+        <div id="ticket-bar-container">
+            <div id="ticket-bar"></div>
+            <div id="ticket-text">BẢO VỆ ĐANG VIẾT BIÊN BẢN...</div>
+        </div>
 
-    <div class="instructions">
-        <p><strong>Nâng cấp:</strong> Toà nhà (Xám) và Hồ nước (Xanh) chặn đường. Lợi dụng các góc kẹt để "cắt đuôi" hoặc chặn đường bảo vệ.<br>
-        <strong>Luật cũ:</strong> Di chuyển (W A S D / Mũi tên) - Đẩy (SPACE). Núp bụi cỏ (Xanh đậm). Đích đến là vùng an toàn góc dưới bên phải!</p>
+        <div id="menu">
+            <h1 id="menu-title">ĐẠI CHIẾN TRỘM CÁ 3D</h1>
+            <p class="instructions" id="menu-desc">
+                <strong>W, A, S, D:</strong> Di chuyển | <strong>SPACE:</strong> Nhảy | <strong>SHIFT:</strong> Chạy nhanh<br><br>
+                Bạn là người câu trộm. Hãy trốn sự truy đuổi của bảo vệ (Khối Đỏ).<br>
+                Núp vào các <strong>Bụi cỏ (Khối xanh lá sẫm)</strong> để tàng hình.<br>
+                Bị bắt sẽ rớt cần câu. Hãy cướp lại trước khi thanh biên bản đầy.<br>
+                Chạy đến <strong>Khu vực phát sáng màu vàng</strong> để tẩu thoát thành công!
+            </p>
+            <button id="play-btn">NHẤN ĐỂ CHƠI</button>
+        </div>
     </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const statusText = document.getElementById('status');
+    // --- CÀI ĐẶT CƠ BẢN THREE.JS ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); // Bầu trời xanh
+    scene.fog = new THREE.Fog(0x87CEEB, 0, 150); // Sương mù che viền map
 
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    // Ánh sáng
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    hemiLight.position.set(0, 200, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(100, 200, 50);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.top = 150;
+    dirLight.shadow.camera.bottom = -150;
+    dirLight.shadow.camera.left = -150;
+    dirLight.shadow.camera.right = 150;
+    scene.add(dirLight);
+
+    // --- BIẾN TRẠNG THÁI GAME ---
+    let isPlaying = false;
     let gameOver = false;
-    let keys = {};
+    let hasRod = true;
+    let ticketProgress = 0;
+    let isHidden = false;
 
-    // Các thực thể
-    const player = { x: 50, y: 50, radius: 12, speed: 4, color: '#3498db', hasRod: true, isHidden: false, pushCooldown: 0 };
-    const guard = { x: 800, y: 150, radius: 14, speed: 2.8, color: '#e74c3c', state: 'chase', stunTimer: 0, ticketProgress: 0, patrolTarget: {x: 0, y: 0} };
-    const rod = { x: 0, y: 0, isDropped: false };
+    // Các mảng chứa object để xử lý va chạm
+    let buildings = [];
+    let bushes = [];
+    let guards = [];
+    let safeZone;
+    let droppedRod;
+    
+    // Vũ khí (Cần câu trên tay)
+    const rodGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 8);
+    const rodMaterial = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
+    const handRod = new THREE.Mesh(rodGeometry, rodMaterial);
+    handRod.rotation.x = Math.PI / 2;
+    handRod.position.set(0.5, -0.5, -1);
+    camera.add(handRod);
+    scene.add(camera);
 
-    // Vùng tẩu thoát
-    const safeZone = { x: 800, y: 600, width: 200, height: 100 };
+    // --- CONTROLLER GÓC NHÌN THỨ NHẤT TỰ VIẾT ---
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, isSprinting = false;
+    let canJump = false;
+    let velocity = new THREE.Vector3();
+    let direction = new THREE.Vector3();
+    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-    // Bụi cỏ (Dùng để tàng hình - Không cản đường)
-    const bushes = [
-        { x: 120, y: 120, width: 80, height: 80 },
-        { x: 300, y: 550, width: 100, height: 60 },
-        { x: 750, y: 300, width: 90, height: 120 },
-        { x: 50, y: 350, width: 70, height: 150 },
-        { x: 550, y: 100, width: 80, height: 80 }
-    ];
+    const menu = document.getElementById('menu');
+    const playBtn = document.getElementById('play-btn');
 
-    // Chướng ngại vật (Cản đường - Toà nhà, Tường rào, Hồ nước)
-    const obstacles = [
-        // Hồ nước chính giữa
-        { x: 400, y: 250, width: 200, height: 200, type: 'water' },
-        // Cụm toà nhà khu trên
-        { x: 200, y: 0, width: 100, height: 200, type: 'building' },
-        { x: 200, y: 280, width: 100, height: 100, type: 'building' },
-        // Dãy tường rào
-        { x: 650, y: 150, width: 20, height: 300, type: 'building' },
-        { x: 650, y: 550, width: 20, height: 150, type: 'building' },
-        // Toà nhà khu dưới
-        { x: 400, y: 550, width: 150, height: 100, type: 'building' },
-        { x: 100, y: 500, width: 150, height: 50, type: 'building' }
-    ];
+    playBtn.addEventListener('click', () => {
+        document.body.requestPointerLock();
+    });
 
-    window.addEventListener('keydown', e => { keys[e.code] = true; });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
+    document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement === document.body) {
+            menu.style.display = 'none';
+            if (!isPlaying) startGame();
+            isPlaying = true;
+        } else {
+            if (!gameOver) {
+                menu.style.display = 'flex';
+                document.getElementById('menu-title').innerText = "TẠM DỪNG";
+                playBtn.innerText = "TIẾP TỤC";
+                isPlaying = false;
+            }
+        }
+    });
 
-    function getDistance(x1, y1, x2, y2) {
-        return Math.hypot(x2 - x1, y2 - y1);
+    document.addEventListener('mousemove', (e) => {
+        if (isPlaying && document.pointerLockElement === document.body) {
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= e.movementX * 0.002;
+            euler.x -= e.movementY * 0.002;
+            euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+            camera.quaternion.setFromEuler(euler);
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        switch (e.code) {
+            case 'ArrowUp': case 'KeyW': moveForward = true; break;
+            case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+            case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+            case 'ArrowRight': case 'KeyD': moveRight = true; break;
+            case 'Space': if (canJump) velocity.y += 15; canJump = false; break;
+            case 'ShiftLeft': case 'ShiftRight': isSprinting = true; document.getElementById('speed-text').innerText = "CHẠY NƯỚC RÚT!"; document.getElementById('speed-text').style.color = "#e74c3c"; break;
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        switch (e.code) {
+            case 'ArrowUp': case 'KeyW': moveForward = false; break;
+            case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+            case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+            case 'ArrowRight': case 'KeyD': moveRight = false; break;
+            case 'ShiftLeft': case 'ShiftRight': isSprinting = false; document.getElementById('speed-text').innerText = "Đi bộ"; document.getElementById('speed-text').style.color = "white"; break;
+        }
+    });
+
+    // --- HỆ THỐNG SINH BẢN ĐỒ (Mỗi lần chơi 1 map mới) ---
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+    
+    function createMap() {
+        // Dọn map cũ
+        buildings.forEach(b => scene.remove(b));
+        bushes.forEach(b => scene.remove(b));
+        guards.forEach(g => scene.remove(g));
+        if(safeZone) scene.remove(safeZone);
+        if(droppedRod) scene.remove(droppedRod);
+        buildings = []; bushes = []; guards = [];
+        
+        // 1. Sàn đất (Ground)
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x55aa55 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // 2. Vùng tẩu thoát (Safe Zone) ở xa
+        const safeGeo = new THREE.BoxGeometry(20, 1, 20);
+        const safeMat = new THREE.MeshBasicMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.8 });
+        safeZone = new THREE.Mesh(safeGeo, safeMat);
+        safeZone.position.set(70, 0.5, -70); // Góc bản đồ
+        scene.add(safeZone);
+
+        // 3. Sinh Tòa nhà & Chướng ngại vật ngẫu nhiên
+        const wallMat = new THREE.MeshLambertMaterial({ color: 0x7f8c8d });
+        for (let i = 0; i < 60; i++) {
+            let x = Math.random() * 180 - 90;
+            let z = Math.random() * 180 - 90;
+            // Tránh sinh vào chỗ đứng của Player (0,0) và Khu an toàn
+            if (Math.abs(x) < 15 && Math.abs(z) < 15) continue; 
+            if (x > 50 && z < -50) continue;
+
+            let width = Math.random() * 10 + 5;
+            let depth = Math.random() * 10 + 5;
+            let height = Math.random() * 15 + 5;
+
+            let b = new THREE.Mesh(boxGeo, wallMat);
+            b.scale.set(width, height, depth);
+            b.position.set(x, height / 2, z);
+            b.castShadow = true;
+            b.receiveShadow = true;
+            scene.add(b);
+            buildings.push(b);
+        }
+
+        // 4. Sinh Bụi cỏ (Dùng để núp)
+        const bushMat = new THREE.MeshLambertMaterial({ color: 0x1e5a22, transparent: true, opacity: 0.9 });
+        for (let i = 0; i < 30; i++) {
+            let x = Math.random() * 160 - 80;
+            let z = Math.random() * 160 - 80;
+            let b = new THREE.Mesh(boxGeo, bushMat);
+            b.scale.set(8, 4, 8);
+            b.position.set(x, 2, z);
+            scene.add(b);
+            bushes.push(b);
+        }
+
+        // 5. Sinh Bảo vệ (AI) - Khối đỏ
+        // Thuật toán số lượng: Người đuổi luôn hơn số người câu (1 người). Random tối đa +5 người. -> Tức là từ 2 đến 6 người.
+        const guardCount = 2 + Math.floor(Math.random() * 5); 
+        document.getElementById('guard-count').innerText = guardCount;
+
+        const guardMat = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+        for (let i = 0; i < guardCount; i++) {
+            let g = new THREE.Mesh(boxGeo, guardMat);
+            g.scale.set(2, 4, 2);
+            // Spawn xa người chơi một chút
+            let spawnX = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 60);
+            let spawnZ = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 60);
+            g.position.set(spawnX, 2, spawnZ);
+            g.castShadow = true;
+            
+            // Dữ liệu AI
+            g.userData = { state: 'chase', speed: 15 + Math.random() * 5, target: new THREE.Vector3() };
+            scene.add(g);
+            guards.push(g);
+        }
     }
 
-    function rectIntersect(x, y, rect) {
-        return x > rect.x && x < rect.x + rect.width && y > rect.y && y < rect.y + rect.height;
+    // --- KIỂM TRA VA CHẠM (COLLISION) ---
+    function checkWallCollision(newPos) {
+        // Thuật toán kiểm tra Bounding Box AABB cơ bản trên mặt phẳng XZ
+        for (let b of buildings) {
+            let halfW = b.scale.x / 2;
+            let halfD = b.scale.z / 2;
+            if (newPos.x > b.position.x - halfW - 1 && newPos.x < b.position.x + halfW + 1 &&
+                newPos.z > b.position.z - halfD - 1 && newPos.z < b.position.z + halfD + 1) {
+                return true; // Bị cản
+            }
+        }
+        return false;
     }
 
-    // THUẬT TOÁN KIỂM TRA VA CHẠM (Tròn & Chữ nhật)
-    function circleRectCollide(circleX, circleY, radius, rect) {
-        let testX = circleX;
-        let testY = circleY;
-        
-        if (circleX < rect.x) testX = rect.x;
-        else if (circleX > rect.x + rect.width) testX = rect.x + rect.width;
-        
-        if (circleY < rect.y) testY = rect.y;
-        else if (circleY > rect.y + rect.height) testY = rect.y + rect.height;
-        
-        let distX = circleX - testX;
-        let distY = circleY - testY;
-        let distance = Math.sqrt((distX*distX) + (distY*distY));
-        
-        return distance <= radius;
+    // --- GAME LOGIC ---
+    function startGame() {
+        createMap();
+        camera.position.set(0, 3, 0);
+        velocity.set(0,0,0);
+        hasRod = true;
+        gameOver = false;
+        isPlaying = true;
+        ticketProgress = 0;
+        handRod.visible = true;
+        document.getElementById('ticket-bar-container').style.display = 'none';
+        document.getElementById('status-text').innerText = "Đang tẩu thoát";
+        document.getElementById('status-text').style.color = "#2ecc71";
     }
 
-    // HÀM DI CHUYỂN CÓ KIỂM TRA VA CHẠM TRƯỢT (Wall-sliding)
-    function moveEntity(entity, dx, dy) {
-        // Thử đi theo trục X
-        entity.x += dx;
-        // Chặn ở viền map
-        if (entity.x - entity.radius < 0 || entity.x + entity.radius > canvas.width) entity.x -= dx;
-        // Chặn ở chướng ngại vật
-        for (let obs of obstacles) {
-            if (circleRectCollide(entity.x, entity.y, entity.radius, obs)) {
-                entity.x -= dx; // Kẹt X thì lùi X lại
+    function endGame(isWin) {
+        gameOver = true;
+        isPlaying = false;
+        document.exitPointerLock();
+        menu.style.display = 'flex';
+        playBtn.innerText = "CHƠI LẠI TRẬN KHÁC";
+        
+        if (isWin) {
+            document.getElementById('menu-title').innerText = "BẠN ĐÃ TẨU THOÁT THÀNH CÔNG!";
+            document.getElementById('menu-title').style.color = "#f1c40f";
+            document.getElementById('menu-desc').innerText = "Bạn đã giữ được cần câu và lọt qua mắt bảo vệ.";
+        } else {
+            document.getElementById('menu-title').innerText = "BẠN ĐÃ BỊ TỊCH THU ĐỒ!";
+            document.getElementById('menu-title').style.color = "#e74c3c";
+            document.getElementById('menu-desc').innerText = "Bảo vệ đã viết xong biên bản. Bạn thua cuộc.";
+        }
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        if (!isPlaying) { renderer.render(scene, camera); return; }
+
+        const delta = clock.getDelta();
+        const statText = document.getElementById('status-text');
+
+        // 1. DI CHUYỂN NGƯỜI CHƠI (Áp dụng Vật lý và Quán tính)
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+        velocity.y -= 30.0 * delta; // Trọng lực (Gravity)
+
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize();
+
+        let speedMultiplier = isSprinting ? 80.0 : 40.0; // Đi bộ vs Chạy nước rút
+
+        if (moveForward || moveBackward) velocity.z -= direction.z * speedMultiplier * delta;
+        if (moveLeft || moveRight) velocity.x -= direction.x * speedMultiplier * delta;
+
+        // Tính toán vị trí mới
+        let nextX = camera.position.x - (velocity.x * delta);
+        let nextZ = camera.position.z - (velocity.z * delta);
+
+        // Check va chạm tường (Sliding logic đơn giản)
+        if (!checkWallCollision(new THREE.Vector3(nextX, camera.position.y, camera.position.z))) {
+            camera.position.x = nextX;
+        } else { velocity.x = 0; }
+        
+        if (!checkWallCollision(new THREE.Vector3(camera.position.x, camera.position.y, nextZ))) {
+            camera.position.z = nextZ;
+        } else { velocity.z = 0; }
+
+        // Va chạm mặt đất
+        camera.position.y += (velocity.y * delta);
+        if (camera.position.y < 3) {
+            velocity.y = 0;
+            camera.position.y = 3;
+            canJump = true;
+        }
+        
+        // Giới hạn bản đồ (Tường vô hình ở mép)
+        camera.position.x = Math.max(-98, Math.min(98, camera.position.x));
+        camera.position.z = Math.max(-98, Math.min(98, camera.position.z));
+
+        // 2. HỆ THỐNG NÚP LÙM (STEALTH)
+        isHidden = false;
+        for(let bush of bushes) {
+            if (camera.position.distanceTo(bush.position) < bush.scale.x / 2) {
+                isHidden = true;
                 break;
             }
         }
 
-        // Thử đi theo trục Y
-        entity.y += dy;
-        // Chặn viền map
-        if (entity.y - entity.radius < 0 || entity.y + entity.radius > canvas.height) entity.y -= dy;
-        // Chặn chướng ngại vật
-        for (let obs of obstacles) {
-            if (circleRectCollide(entity.x, entity.y, entity.radius, obs)) {
-                entity.y -= dy; // Kẹt Y thì lùi Y lại
-                break;
-            }
-        }
-    }
+        // 3. LOGIC AI BẢO VỆ
+        let guardIsWriting = false;
 
-    function update() {
-        if (gameOver) return;
+        guards.forEach(g => {
+            if (g.userData.state === 'chase') {
+                if (isHidden) {
+                    // Mất dấu -> Đi loanh quanh (Wander)
+                    g.position.x += Math.sin(Date.now() * 0.001) * delta * 5;
+                    g.position.z += Math.cos(Date.now() * 0.001) * delta * 5;
+                    statText.innerText = "Bạn đang tàng hình!";
+                    statText.style.color = "#3498db";
+                } else {
+                    // Đuổi theo Player
+                    let dir = new THREE.Vector3().subVectors(camera.position, g.position);
+                    dir.y = 0; dir.normalize();
+                    
+                    // Dự đoán hướng để né nhà (AI cơ bản)
+                    let nextGX = g.position.x + dir.x * g.userData.speed * delta;
+                    let nextGZ = g.position.z + dir.z * g.userData.speed * delta;
+                    
+                    if(!checkWallCollision(new THREE.Vector3(nextGX, g.position.y, g.position.z))) g.position.x = nextGX;
+                    if(!checkWallCollision(new THREE.Vector3(g.position.x, g.position.y, nextGZ))) g.position.z = nextGZ;
 
-        // 1. Nhập liệu và di chuyển Player
-        let dx = 0, dy = 0;
-        if (keys['ArrowUp'] || keys['KeyW']) dy -= player.speed;
-        if (keys['ArrowDown'] || keys['KeyS']) dy += player.speed;
-        if (keys['ArrowLeft'] || keys['KeyA']) dx -= player.speed;
-        if (keys['ArrowRight'] || keys['KeyD']) dx += player.speed;
-        
-        // Chuẩn hóa đường chéo (không chạy nhanh hơn khi bấm 2 phím chéo)
-        if (dx !== 0 && dy !== 0) {
-            dx *= 0.707; dy *= 0.707;
-        }
-        
-        moveEntity(player, dx, dy);
+                    g.lookAt(new THREE.Vector3(camera.position.x, g.position.y, camera.position.z));
+                    
+                    if (hasRod) {
+                        statText.innerText = "BỊ PHÁT HIỆN! BỎ CHẠY!";
+                        statText.style.color = "#e74c3c";
+                    }
 
-        // 2. Núp bụi cỏ
-        player.isHidden = bushes.some(bush => rectIntersect(player.x, player.y, bush));
+                    // Nếu bắt được Player
+                    if (hasRod && g.position.distanceTo(camera.position) < 3.0) {
+                        hasRod = false;
+                        handRod.visible = false;
+                        
+                        // Tạo cần rớt ở dưới đất
+                        droppedRod = new THREE.Mesh(rodGeometry, rodMaterial);
+                        droppedRod.position.set(camera.position.x, 1, camera.position.z);
+                        droppedRod.rotation.x = Math.PI / 2;
+                        droppedRod.rotation.z = Math.random() * Math.PI;
+                        scene.add(droppedRod);
 
-        // 3. Cơ chế Đẩy
-        if (player.pushCooldown > 0) player.pushCooldown--;
-        if (keys['Space'] && player.pushCooldown === 0) {
-            let dist = getDistance(player.x, player.y, guard.x, guard.y);
-            if (dist < 50 && guard.state !== 'writing_ticket') {
-                // Đẩy văng ra
-                let pushDx = (guard.x > player.x) ? 40 : -40;
-                let pushDy = (guard.y > player.y) ? 40 : -40;
-                moveEntity(guard, pushDx, pushDy); // Đẩy vẫn bị kẹt tường
-                guard.state = 'stunned';
-                guard.stunTimer = 60;
-                player.pushCooldown = 150;
-                statusText.innerText = "Đã xô ngã bảo vệ!";
-            }
-        }
-
-        // 4. AI Bảo vệ
-        if (guard.state === 'stunned') {
-            guard.stunTimer--;
-            if (guard.stunTimer <= 0) guard.state = 'chase';
-        } 
-        else if (guard.state === 'chase') {
-            statusText.innerText = "Bảo vệ đang săn lùng!";
-            if (!player.isHidden) {
-                let angle = Math.atan2(player.y - guard.y, player.x - guard.x);
-                let gdx = Math.cos(angle) * guard.speed;
-                let gdy = Math.sin(angle) * guard.speed;
-                // AI dùng hệ thống di chuyển trượt tường để tự tìm đường qua góc kẹt
-                moveEntity(guard, gdx, gdy);
-            }
-
-            // Bắt người chơi
-            if (getDistance(player.x, player.y, guard.x, guard.y) < player.radius + guard.radius + 5) {
-                if (player.hasRod) {
-                    player.hasRod = false;
-                    rod.isDropped = true;
-                    // Rớt cần ngay vị trí hiện tại
-                    rod.x = player.x; rod.y = player.y;
-                    guard.state = 'writing_ticket';
-                    guard.ticketProgress = 0;
+                        g.userData.state = 'writing';
+                        ticketProgress = 0;
+                        document.getElementById('ticket-bar-container').style.display = 'block';
+                    }
                 }
-            }
-        } 
-        else if (guard.state === 'writing_ticket' || guard.state === 'distracted') {
-            guard.ticketProgress += 0.15;
-            
-            // Random hớ hênh
-            if (Math.random() < 0.02) {
-                guard.state = (guard.state === 'writing_ticket') ? 'distracted' : 'writing_ticket';
-                guard.patrolTarget = {
-                    x: rod.x + (Math.random() * 200 - 100), 
-                    y: rod.y + (Math.random() * 200 - 100)
-                };
-            }
+            } 
+            else if (g.userData.state === 'writing') {
+                guardIsWriting = true;
+                ticketProgress += 10 * delta; // Tăng biên bản
+                document.getElementById('ticket-bar').style.width = ticketProgress + '%';
+                
+                // Trông coi cần câu
+                g.lookAt(droppedRod.position);
 
-            if (guard.state === 'distracted') {
-                statusText.innerText = "Bảo vệ hớ hênh đi dạo! Lụm cần đi!";
-                let angle = Math.atan2(guard.patrolTarget.y - guard.y, guard.patrolTarget.x - guard.x);
-                moveEntity(guard, Math.cos(angle) * (guard.speed * 0.5), Math.sin(angle) * (guard.speed * 0.5));
-            } else {
-                statusText.innerText = `Đang lập biên bản... ${Math.floor(guard.ticketProgress)}%`;
-                if (getDistance(guard.x, guard.y, rod.x, rod.y) > 25) {
-                    let angle = Math.atan2(rod.y - guard.y, rod.x - guard.x);
-                    moveEntity(guard, Math.cos(angle) * guard.speed, Math.sin(angle) * guard.speed);
+                if (ticketProgress >= 100) {
+                    endGame(false); // Thua
                 }
-            }
-
-            if (guard.ticketProgress >= 100) {
-                statusText.innerText = "LẬP BIÊN BẢN XONG! BẠN BỊ TỊCH THU ĐỒ!";
-                statusText.style.color = "#e74c3c";
-                gameOver = true;
-            }
-        }
-
-        // 5. Lụm lại cần
-        if (rod.isDropped && getDistance(player.x, player.y, rod.x, rod.y) < 30) {
-            player.hasRod = true;
-            rod.isDropped = false;
-            guard.state = 'chase'; 
-            guard.ticketProgress = 0;
-            statusText.innerText = "Cướp được cần! Tẩu thoát lẹ!";
-        }
-
-        // 6. Thắng game
-        if (player.hasRod && rectIntersect(player.x, player.y, safeZone)) {
-            statusText.innerText = "VỀ ĐÍCH AN TOÀN! CHÚC MỪNG CHIẾN THẮNG!";
-            statusText.style.color = "#f1c40f";
-            gameOver = true;
-        }
-    }
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Vùng an toàn
-        ctx.fillStyle = '#f39c12';
-        ctx.fillRect(safeZone.x, safeZone.y, safeZone.width, safeZone.height);
-        ctx.fillStyle = 'black';
-        ctx.font = '20px Arial';
-        ctx.fillText('LỐI THOÁT', safeZone.x + 40, safeZone.y + 55);
-
-        // Vẽ Chướng ngại vật (Hồ và Toà nhà)
-        obstacles.forEach(obs => {
-            if (obs.type === 'water') {
-                ctx.fillStyle = '#3498db'; // Nước
-                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                ctx.fillRect(obs.x + 10, obs.y + 10, obs.width - 20, 5); // Gợn sóng
-            } else if (obs.type === 'building') {
-                ctx.fillStyle = '#7f8c8d'; // Tường xám
-                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                ctx.fillStyle = '#2c3e50'; // Mái viền
-                ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
             }
         });
 
-        // Vẽ Bụi cỏ
-        ctx.fillStyle = '#27ae60';
-        bushes.forEach(bush => {
-            ctx.fillRect(bush.x, bush.y, bush.width, bush.height);
-            // Điểm xuyết lá cỏ
-            ctx.fillStyle = '#2ecc71';
-            ctx.fillRect(bush.x + 10, bush.y + 10, 10, 10);
-            ctx.fillRect(bush.x + 30, bush.y + 30, 15, 10);
-            ctx.fillStyle = '#27ae60'; // Trả lại màu nền bụi cỏ
-        });
-
-        // Vẽ Cần câu rơi
-        if (rod.isDropped) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(rod.x - 2, rod.y - 20, 4, 40); // Thân cần
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(rod.x, rod.y + 20, 3, 0, Math.PI * 2); // Phao câu
-            ctx.fill();
-            
-            // Thanh biên bản
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(guard.x - 20, guard.y - 30, 40, 5);
-            ctx.fillStyle = '#f1c40f';
-            ctx.fillRect(guard.x - 20, guard.y - 30, (guard.ticketProgress / 100) * 40, 5);
+        // 4. LỤM LẠI CẦN CÂU (GIẬT CẦN)
+        if (!hasRod && droppedRod) {
+            statText.innerText = "RỚT CẦN! LƯỜN LẠI ĐỂ LỤM!";
+            statText.style.color = "#f39c12";
+            if (camera.position.distanceTo(droppedRod.position) < 4.0) {
+                hasRod = true;
+                handRod.visible = true;
+                scene.remove(droppedRod);
+                droppedRod = null;
+                document.getElementById('ticket-bar-container').style.display = 'none';
+                
+                // Đánh thức AI đuổi lại
+                guards.forEach(g => { g.userData.state = 'chase'; });
+            }
         }
 
-        // Vẽ AI Bảo vệ
-        ctx.fillStyle = guard.color;
-        ctx.beginPath();
-        ctx.arc(guard.x, guard.y, guard.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#c0392b'; // Mũ bảo vệ
-        ctx.fillRect(guard.x - 10, guard.y - 14, 20, 8);
-        
-        if (guard.state === 'stunned') {
-            ctx.fillStyle = 'white';
-            ctx.fillText('💫', guard.x - 10, guard.y - 20);
+        // 5. ĐIỀU KIỆN THẮNG
+        if (hasRod && camera.position.distanceTo(safeZone.position) < 15) {
+            endGame(true); // Thắng
         }
 
-        // Vẽ Player
-        ctx.globalAlpha = player.isHidden ? 0.4 : 1.0;
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        if (player.hasRod) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(player.x - 2, player.y - 20, 4, 30);
-        }
-        ctx.globalAlpha = 1.0;
+        renderer.render(scene, camera);
     }
 
-    function gameLoop() {
-        update();
-        draw();
-        requestAnimationFrame(gameLoop);
-    }
+    // Xử lý Resize cửa sổ
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
-    gameLoop();
+    // Bắt đầu vòng lặp render
+    animate();
 </script>
 </body>
 </html>
