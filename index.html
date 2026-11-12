@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đại Chiến Trộm Cá 3D - Pro Version</title>
+    <title>Đại Chiến Trộm Cá 3D - Ultimate Edition</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; }
-        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.8); }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 2px black;}
         #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
         #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
 
-        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 20, 30, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; pointer-events: auto; backdrop-filter: blur(5px); }
-        h1 { font-size: 55px; margin-bottom: 10px; color: #f1c40f; text-shadow: 3px 3px 0 #000; letter-spacing: 2px; }
-        p.instructions { font-size: 18px; text-align: center; max-width: 650px; line-height: 1.8; margin-bottom: 30px; background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px; border: 1px solid #34495e;}
-        button { padding: 15px 50px; font-size: 22px; font-weight: bold; background: #e74c3c; color: white; border: 4px solid #c0392b; border-radius: 8px; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
-        button:hover { background: #c0392b; transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 15, 25, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; pointer-events: auto; backdrop-filter: blur(8px); }
+        h1 { font-size: 60px; margin-bottom: 15px; color: #00d2d3; text-shadow: 4px 4px 0 #000; letter-spacing: 3px; text-align: center; }
+        p.instructions { font-size: 18px; text-align: left; max-width: 700px; line-height: 1.8; margin-bottom: 30px; background: rgba(0,0,0,0.6); padding: 25px; border-radius: 12px; border: 2px solid #576574;}
+        button { padding: 15px 60px; font-size: 24px; font-weight: bold; background: #ff9f43; color: white; border: 4px solid #ee5253; border-radius: 8px; cursor: pointer; transition: 0.3s; text-transform: uppercase; box-shadow: 0 5px 15px rgba(238, 82, 83, 0.4); }
+        button:hover { background: #ee5253; transform: scale(1.05); }
 
         #hud { position: absolute; top: 20px; left: 20px; color: white; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px black; }
-        #hud span { display: inline-block; margin-bottom: 5px; }
+        #hud span { display: inline-block; margin-bottom: 8px; }
         
-        #ticket-bar-container { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: 500px; height: 35px; background: rgba(0,0,0,0.7); border: 3px solid #fff; border-radius: 5px; display: none; overflow: hidden; }
+        #ticket-bar-container { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); width: 500px; height: 35px; background: rgba(0,0,0,0.8); border: 3px solid #fff; border-radius: 5px; display: none; overflow: hidden; box-shadow: 0 0 10px red;}
         #ticket-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #f39c12, #e74c3c); transition: width 0.1s; }
         #ticket-text { position: absolute; width: 100%; text-align: center; line-height: 35px; color: white; font-weight: bold; font-size: 18px; text-shadow: 1px 1px 2px black; top: 0;}
     </style>
@@ -33,32 +33,31 @@
     <div id="ui-layer">
         <div id="crosshair"></div>
         <div id="hud">
-            Trạng thái: <span id="status-text" style="color:#2ecc71;">Đang tẩu thoát</span><br>
+            Trạng thái: <span id="status-text" style="color:#1dd1a1;">Sẵn sàng tẩu thoát</span><br>
             Tốc độ: <span id="speed-text">Đi bộ</span><br>
         </div>
         
         <div id="ticket-bar-container">
             <div id="ticket-bar"></div>
-            <div id="ticket-text">BẢO VỆ ĐANG LẬP BIÊN BẢN...</div>
+            <div id="ticket-text">AI ĐANG LẬP BIÊN BẢN TỊCH THU...</div>
         </div>
 
         <div id="menu">
-            <h1 id="menu-title">ĐẠI CHIẾN TRỘM CÁ 3D</h1>
+            <h1 id="menu-title">ĐẠI CHIẾN TRỘM CÁ<br>ULTIMATE</h1>
             <p class="instructions" id="menu-desc">
-                <strong>W, A, S, D:</strong> Di chuyển theo góc nhìn | <strong>SPACE:</strong> Nhảy<br>
-                <strong>Giữ SHIFT:</strong> Chạy nước rút (Nhanh hơn bảo vệ)<br><br>
-                1. Núp vào <strong>Cây Thông</strong> để xoá dấu vết.<br>
-                2. Nếu bị tóm, bảo vệ sẽ <strong>lùi ra xa</strong> để viết biên bản. <br>Hãy lách lại cướp Cần Câu dưới đất.<br>
-                3. Đích đến là <strong>Vòng Tròn Sáng Vàng</strong>.
+                🕹️ <strong>ĐIỀU KHIỂN:</strong> W,A,S,D di chuyển | SPACE nhảy | SHIFT chạy nước rút.<br>
+                🧗 <strong>LEO TRÈO:</strong> Đi thẳng (đè W) vào toà nhà để leo lên mái nhà.<br>
+                🌲 <strong>NÚP LÙM CHÂN THỰC:</strong> Đứng im trong Cây Thông sẽ tàng hình. <strong>Nhưng nếu bạn cựa quậy di chuyển</strong>, sẽ có tiếng động và bị lộ vị trí!<br>
+                🏃‍♂️ <strong>TẨU THOÁT:</strong> Chạy tới bức tường ánh sáng màu vàng khổng lồ ở đầu kia bản đồ.
             </p>
-            <button id="play-btn">NHẤN ĐỂ CHƠI</button>
+            <button id="play-btn">CHƠI NGAY</button>
         </div>
     </div>
 
 <script>
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x74b9ff);
-    scene.fog = new THREE.Fog(0x74b9ff, 50, 150);
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 80, 250); // Sương mù xa hơn cho map rộng
 
     const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -67,46 +66,57 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     hemiLight.position.set(0, 200, 0);
     scene.add(hemiLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(100, 150, 50);
+    dirLight.position.set(150, 200, 100);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 500;
-    dirLight.shadow.camera.top = 100;
-    dirLight.shadow.camera.bottom = -100;
-    dirLight.shadow.camera.left = -100;
-    dirLight.shadow.camera.right = 100;
+    dirLight.shadow.camera.far = 800;
+    dirLight.shadow.camera.top = 200;
+    dirLight.shadow.camera.bottom = -200;
+    dirLight.shadow.camera.left = -200;
+    dirLight.shadow.camera.right = 200;
     scene.add(dirLight);
 
+    // Texture bãi cỏ
     const grassCanvas = document.createElement('canvas');
-    grassCanvas.width = 256; grassCanvas.height = 256;
+    grassCanvas.width = 512; grassCanvas.height = 512;
     const ctx = grassCanvas.getContext('2d');
-    ctx.fillStyle = '#55aa55'; ctx.fillRect(0,0,256,256);
+    ctx.fillStyle = '#55aa55'; ctx.fillRect(0,0,512,512);
     ctx.fillStyle = '#4e9a4e';
-    for(let i=0; i<300; i++){
-        ctx.fillRect(Math.random()*256, Math.random()*256, 4, 12);
+    for(let i=0; i<800; i++){
+        ctx.fillRect(Math.random()*512, Math.random()*512, 6, 18);
     }
     const grassTex = new THREE.CanvasTexture(grassCanvas);
     grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-    grassTex.repeat.set(50, 50);
+    grassTex.repeat.set(80, 80);
 
     let isPlaying = false, gameOver = false, hasRod = true;
     let ticketProgress = 0, isHidden = false, rodDropCooldown = 0;
+    let revealTimer = 0; // Thời gian bị lộ khi di chuyển trong bụi
 
     let buildings = [], trees = [], guards = [];
-    let safeZone, droppedRod, ticketGuard;
+    let safeZoneLine, droppedRod;
+    const MAP_SIZE = 400; // Mở rộng map gấp 4 lần diện tích
+    const HALF_MAP = MAP_SIZE / 2;
     
+    // --- VẼ TAY NGƯỜI CHƠI & CẦN CÂU ---
     const handRodGroup = new THREE.Group();
-    const rodStick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 2, 8), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+    // Bàn tay
+    const handMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.4), new THREE.MeshLambertMaterial({color: 0xf5cdad}));
+    handMesh.position.set(0, 0, 0.2);
+    // Cần câu
+    const rodStick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 3, 8), new THREE.MeshLambertMaterial({ color: 0x111111 }));
     rodStick.rotation.x = Math.PI / 2;
-    const rodString = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    rodString.position.set(0, -0.5, 1);
+    const rodString = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1.5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    rodString.position.set(0, -0.75, 1.5);
+    
+    handRodGroup.add(handMesh);
     handRodGroup.add(rodStick); handRodGroup.add(rodString);
     handRodGroup.position.set(0.6, -0.4, -1);
     
@@ -155,8 +165,8 @@
             case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
             case 'ArrowDown': case 'KeyS': moveBackward = true; break;
             case 'ArrowRight': case 'KeyD': moveRight = true; break;
-            case 'Space': if (canJump) { velocity.y = 15; canJump = false; } break;
-            case 'ShiftLeft': case 'ShiftRight': isSprinting = true; document.getElementById('speed-text').innerText = "CHẠY NƯỚC RÚT!"; document.getElementById('speed-text').style.color = "#f1c40f"; break;
+            case 'Space': if (canJump) { velocity.y = 18; canJump = false; } break; // Nhảy cao hơn xíu
+            case 'ShiftLeft': case 'ShiftRight': isSprinting = true; document.getElementById('speed-text').innerText = "CHẠY NƯỚC RÚT!"; document.getElementById('speed-text').style.color = "#ff9f43"; break;
         }
     });
 
@@ -170,32 +180,68 @@
         }
     });
 
+    // --- VẼ CHI TIẾT AI BẢO VỆ ---
     function createGuardModel() {
         const g = new THREE.Group();
-        const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc0392b });
-        const skinMat = new THREE.MeshLambertMaterial({ color: 0xf5cdad });
-        const blackMat = new THREE.MeshBasicMaterial({ color: 0x111 });
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc0392b }); // Áo đỏ
+        const pantsMat = new THREE.MeshLambertMaterial({ color: 0x2c3e50 }); // Quần đen
+        const skinMat = new THREE.MeshLambertMaterial({ color: 0xf5cdad }); // Da
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x111 }); // Đen (mắt, miệng)
+        const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); // Trắng (Mắt)
 
-        const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.5, 1), bodyMat);
-        body.position.y = 1.25;
-        body.castShadow = true;
-        const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), skinMat);
-        head.position.y = 3.0;
+        // Đầu
+        const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), skinMat);
+        head.position.y = 3.6;
         head.castShadow = true;
-        const glasses = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.3, 0.4), blackMat);
-        glasses.position.set(0, 3.1, 0.4);
+
+        // Mắt trái
+        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), whiteMat);
+        eyeL.position.set(-0.25, 0.2, 0.61);
+        const pupilL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.15), blackMat);
+        pupilL.position.set(-0.25, 0.2, 0.62);
         
-        g.add(body); g.add(head); g.add(glasses);
+        // Mắt phải
+        const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), whiteMat);
+        eyeR.position.set(0.25, 0.2, 0.61);
+        const pupilR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.15), blackMat);
+        pupilR.position.set(0.25, 0.2, 0.62);
+
+        // Miệng
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.1), blackMat);
+        mouth.position.set(0, -0.3, 0.61);
+        head.add(eyeL, pupilL, eyeR, pupilR, mouth);
+
+        // Thân
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.0, 1), bodyMat);
+        body.position.y = 2.0;
+        body.castShadow = true;
+
+        // Hàm tịnh tiến Pivot của khớp để xoay
+        const armGeo = new THREE.BoxGeometry(0.5, 1.6, 0.5); armGeo.translate(0, -0.8, 0);
+        const legGeo = new THREE.BoxGeometry(0.6, 1.6, 0.6); legGeo.translate(0, -0.8, 0);
+
+        // 2 Tay
+        const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-1.05, 3.0, 0); armL.castShadow = true;
+        const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(1.05, 3.0, 0); armR.castShadow = true;
+
+        // 2 Chân
+        const legL = new THREE.Mesh(legGeo, pantsMat); legL.position.set(-0.4, 1.0, 0); legL.castShadow = true;
+        const legR = new THREE.Mesh(legGeo, pantsMat); legR.position.set(0.4, 1.0, 0); legR.castShadow = true;
+
+        g.add(head); g.add(body); g.add(armL); g.add(armR); g.add(legL); g.add(legR);
+        
+        // Lưu reference để diễn hoạt (Animate)
+        g.userData.limbs = { armL, armR, legL, legR };
         return g;
     }
 
     function createTreeModel() {
         const t = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 3), new THREE.MeshLambertMaterial({ color: 0x5D4037 }));
-        trunk.position.y = 1.5;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 4), new THREE.MeshLambertMaterial({ color: 0x5D4037 }));
+        trunk.position.y = 2.0;
         trunk.castShadow = true;
-        const leaves = new THREE.Mesh(new THREE.ConeGeometry(3, 7, 6), new THREE.MeshLambertMaterial({ color: 0x27ae60 }));
-        leaves.position.y = 5;
+        const leaves = new THREE.Mesh(new THREE.ConeGeometry(4, 9, 7), new THREE.MeshLambertMaterial({ color: 0x27ae60 }));
+        leaves.position.y = 6.5;
         leaves.castShadow = true;
         t.add(trunk); t.add(leaves);
         return t;
@@ -205,79 +251,111 @@
         buildings.forEach(b => scene.remove(b));
         trees.forEach(t => scene.remove(t));
         guards.forEach(g => scene.remove(g));
-        if(safeZone) scene.remove(safeZone);
+        if(safeZoneLine) scene.remove(safeZoneLine);
         if(droppedRod) scene.remove(droppedRod);
         buildings = []; trees = []; guards = [];
 
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ map: grassTex }));
+        // Đất 400x400
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE), new THREE.MeshLambertMaterial({ map: grassTex }));
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        safeZone = new THREE.Mesh(
-            new THREE.CylinderGeometry(6, 6, 0.2, 32), 
-            new THREE.MeshBasicMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.6 })
+        // VÙNG TẨU THOÁT KHỔNG LỒ Ở CUỐI BẢN ĐỒ (z = -190)
+        safeZoneLine = new THREE.Mesh(
+            new THREE.BoxGeometry(MAP_SIZE, 30, 20),
+            new THREE.MeshBasicMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
         );
-        safeZone.position.set(70, 0.1, -70);
-        scene.add(safeZone);
-        
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 30, 16), new THREE.MeshBasicMaterial({color: 0xf1c40f, transparent: true, opacity: 0.2}));
-        pillar.position.y = 15;
-        safeZone.add(pillar);
+        safeZoneLine.position.set(0, 15, -HALF_MAP + 10);
+        scene.add(safeZoneLine);
 
-        const wallMat = new THREE.MeshLambertMaterial({ color: 0x95a5a6 });
-        for (let i = 0; i < 45; i++) {
-            let x = Math.random() * 180 - 90;
-            let z = Math.random() * 180 - 90;
-            if (Math.abs(x) < 20 && Math.abs(z) < 20) continue; 
-            if (x > 50 && z < -50) continue;
+        // Sinh Toà nhà (Tăng số lượng cho map to)
+        const wallMat = new THREE.MeshLambertMaterial({ color: 0x7f8c8d });
+        for (let i = 0; i < 120; i++) {
+            let x = Math.random() * (MAP_SIZE - 40) - (HALF_MAP - 20);
+            let z = Math.random() * (MAP_SIZE - 40) - (HALF_MAP - 20);
+            
+            // Tránh khu vực Spawn (x=0, z=HALF_MAP-20) và Khu vực Tẩu thoát (z < -HALF_MAP+40)
+            if (Math.abs(x) < 20 && z > HALF_MAP - 40) continue; 
+            if (z < -HALF_MAP + 40) continue;
 
-            let w = Math.random() * 8 + 6;
-            let d = Math.random() * 8 + 6;
-            let h = Math.random() * 15 + 8;
+            let w = Math.random() * 12 + 6;
+            let d = Math.random() * 12 + 6;
+            let h = Math.random() * 15 + 10;
             let b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
             b.position.set(x, h/2, z);
             b.castShadow = true; b.receiveShadow = true;
             
-            b.userData = { width: w, depth: d };
+            b.userData = { width: w, depth: d, height: h };
             scene.add(b);
             buildings.push(b);
         }
 
-        for (let i = 0; i < 40; i++) {
-            let x = Math.random() * 180 - 90;
-            let z = Math.random() * 180 - 90;
+        // Sinh Cây (120 cây)
+        for (let i = 0; i < 120; i++) {
+            let x = Math.random() * (MAP_SIZE - 20) - (HALF_MAP - 10);
+            let z = Math.random() * (MAP_SIZE - 40) - (HALF_MAP - 20);
             let t = createTreeModel();
             t.position.set(x, 0, z);
             scene.add(t);
             trees.push(t);
         }
 
-        for (let i = 0; i < 3; i++) {
+        // Sinh Bảo vệ
+        for (let i = 0; i < 4; i++) {
             let g = createGuardModel();
-            let spawnX = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 40);
-            let spawnZ = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 40);
+            let spawnX = (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 80);
+            let spawnZ = HALF_MAP - 60 - (Math.random() * 100); // Rải rác dọc đường đi
             g.position.set(spawnX, 0, spawnZ);
-            g.userData = { state: 'chase', speed: 14 + Math.random() * 3, standPos: new THREE.Vector3() };
+            
+            // Tốc độ AI nhanh nhẹn
+            g.userData = { state: 'chase', speed: 15 + Math.random() * 3, standPos: new THREE.Vector3(), oldPos: new THREE.Vector3(), stuckTimer: 0 };
             scene.add(g);
             guards.push(g);
         }
     }
 
+    // --- KIỂM TRA VA CHẠM THÔNG MINH (Bao gồm độ cao để có thể nhảy lên nóc nhà) ---
     function checkWallCollision(newPos, radius) {
         for (let b of buildings) {
+            // Nếu người chơi đang ở cao hơn nóc nhà, thì KHÔNG bị cản (có thể đi trên nóc)
+            let roofY = b.position.y + b.userData.height/2;
+            if (newPos.y - 1.5 >= roofY) continue; // 1.5 là độ cao mắt camera trừ hao
+
             let minX = b.position.x - b.userData.width/2 - radius;
             let maxX = b.position.x + b.userData.width/2 + radius;
             let minZ = b.position.z - b.userData.depth/2 - radius;
             let maxZ = b.position.z + b.userData.depth/2 + radius;
+            
             if (newPos.x > minX && newPos.x < maxX && newPos.z > minZ && newPos.z < maxZ) return true;
         }
         return false;
     }
 
+    // --- TÍNH TOÁN MẶT SÀN (ĐỂ ĐỨNG TRÊN NÓC NHÀ) ---
+    function getFloorY(pos, radius) {
+        let floorY = 3.5; // Đất nền (Chiều cao Camera mặc định)
+        for (let b of buildings) {
+            let minX = b.position.x - b.userData.width/2 - radius;
+            let maxX = b.position.x + b.userData.width/2 + radius;
+            let minZ = b.position.z - b.userData.depth/2 - radius;
+            let maxZ = b.position.z + b.userData.depth/2 + radius;
+            
+            // Nếu nằm hoàn toàn trên XZ của nhà
+            if (pos.x > minX && pos.x < maxX && pos.z > minZ && pos.z < maxZ) {
+                let roofY = b.position.y + b.userData.height/2 + 3.5;
+                if (pos.y >= roofY - 2.0) { // Nếu rơi gần chạm nóc
+                    floorY = Math.max(floorY, roofY);
+                }
+            }
+        }
+        return floorY;
+    }
+
     function startGame() {
         createMap();
-        camera.position.set(0, 3, 0);
+        // Điểm xuất phát ở cuối map phía Nam
+        camera.position.set(0, 3.5, HALF_MAP - 20);
         euler.set(0,0,0);
         camera.quaternion.setFromEuler(euler);
         velocity.set(0,0,0);
@@ -286,11 +364,12 @@
         isPlaying = true;
         ticketProgress = 0;
         rodDropCooldown = 0;
+        revealTimer = 0;
         
         handRodGroup.visible = true;
         document.getElementById('ticket-bar-container').style.display = 'none';
-        statText.innerText = "Đang tẩu thoát";
-        statText.style.color = "#2ecc71";
+        statText.innerText = "Sẵn sàng tẩu thoát";
+        statText.style.color = "#1dd1a1";
     }
 
     function endGame(isWin) {
@@ -301,13 +380,13 @@
         playBtn.innerText = "CHƠI LẠI TRẬN KHÁC";
         
         if (isWin) {
-            document.getElementById('menu-title').innerText = "VƯỢT NGỤC THÀNH CÔNG!";
-            document.getElementById('menu-title').style.color = "#f1c40f";
-            document.getElementById('menu-desc').innerText = "Bạn đã mang thành công chiếc cần câu ra khỏi khu vực!";
+            document.getElementById('menu-title').innerText = "TẨU THOÁT THÀNH CÔNG!";
+            document.getElementById('menu-title').style.color = "#ff9f43";
+            document.getElementById('menu-desc').innerText = "Kỹ năng luồn lách tuyệt vời. Bảo vệ hoàn toàn bất lực!";
         } else {
-            document.getElementById('menu-title').innerText = "BẠN ĐÃ BỊ TỊCH THU CẦN!";
-            document.getElementById('menu-title').style.color = "#e74c3c";
-            document.getElementById('menu-desc').innerText = "Biên bản đã lập xong. Đồ nghề của bạn đã bay màu.";
+            document.getElementById('menu-title').innerText = "BẠN ĐÃ BỊ TỊCH THU ĐỒ!";
+            document.getElementById('menu-title').style.color = "#ee5253";
+            document.getElementById('menu-desc').innerText = "Biên bản đã lập xong. Mất cả chì lẫn chài.";
         }
     }
 
@@ -317,94 +396,149 @@
         requestAnimationFrame(animate);
         if (!isPlaying) { renderer.render(scene, camera); return; }
 
-        const delta = clock.getDelta();
+        const delta = Math.min(clock.getDelta(), 0.1); // Giới hạn delta tránh lag bay xuyên tường
+        const time = clock.getElapsedTime();
 
-        // Lấy hướng nhìn chuẩn của Camera
+        // 1. CHUẨN HOÁ HƯỚNG DI CHUYỂN
         let forward = new THREE.Vector3();
         camera.getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
+        forward.y = 0; forward.normalize();
 
         let right = new THREE.Vector3();
         right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-        // Đọc Phím
-        let moveX = Number(moveRight) - Number(moveLeft); // D: 1, A: -1
-        let moveZ = Number(moveForward) - Number(moveBackward); // W: 1, S: -1
+        let moveX = Number(moveRight) - Number(moveLeft); 
+        let moveZ = Number(moveForward) - Number(moveBackward); 
         
         let inputDir = new THREE.Vector2(moveX, moveZ);
         if (inputDir.length() > 0) inputDir.normalize();
 
         // Vật lý
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-        velocity.y -= 40.0 * delta; 
+        velocity.x -= velocity.x * 8.0 * delta; // Ma sát
+        velocity.z -= velocity.z * 8.0 * delta;
+        velocity.y -= 45.0 * delta; // Trọng lực nặng hơn
 
-        let speedMultiplier = isSprinting ? 220.0 : 100.0; 
+        let speedMultiplier = isSprinting ? 240.0 : 120.0; 
         
-        // CỘNG DỒN GIA TỐC VÀO HƯỚNG NHÌN THỰC TẾ
         velocity.x += (right.x * inputDir.x + forward.x * inputDir.y) * speedMultiplier * delta;
         velocity.z += (right.z * inputDir.x + forward.z * inputDir.y) * speedMultiplier * delta;
 
         let nextX = camera.position.x + (velocity.x * delta);
         let nextZ = camera.position.z + (velocity.z * delta);
 
-        if (!checkWallCollision(new THREE.Vector3(nextX, camera.position.y, camera.position.z), 1.0)) camera.position.x = nextX;
-        else velocity.x = 0;
-        
-        if (!checkWallCollision(new THREE.Vector3(camera.position.x, camera.position.y, nextZ), 1.0)) camera.position.z = nextZ;
-        else velocity.z = 0;
+        // --- CƠ CHẾ LEO TRÈO & CHECK VA CHẠM ---
+        let hitWallX = checkWallCollision(new THREE.Vector3(nextX, camera.position.y, camera.position.z), 1.0);
+        let hitWallZ = checkWallCollision(new THREE.Vector3(camera.position.x, camera.position.y, nextZ), 1.0);
 
+        if (!hitWallX) {
+            camera.position.x = nextX;
+        } else {
+            velocity.x = 0;
+            // NẾU ĐỤNG TƯỜNG VÀ ĐANG BẤM PHÍM W -> LEO LÊN TƯỜNG
+            if (moveForward) velocity.y = 12; 
+        }
+        
+        if (!hitWallZ) {
+            camera.position.z = nextZ;
+        } else {
+            velocity.z = 0;
+            if (moveForward) velocity.y = 12; // Leo trèo
+        }
+
+        // Mặt sàn tự động thay đổi nếu đứng trên mái nhà
+        let currentFloorY = getFloorY(camera.position, 1.0);
         camera.position.y += (velocity.y * delta);
-        if (camera.position.y < 3) {
+        if (camera.position.y < currentFloorY) {
             velocity.y = 0;
-            camera.position.y = 3;
+            camera.position.y = currentFloorY;
             canJump = true;
         }
         
-        camera.position.x = Math.max(-98, Math.min(98, camera.position.x));
-        camera.position.z = Math.max(-98, Math.min(98, camera.position.z));
+        // Giới hạn biên map
+        camera.position.x = Math.max(-HALF_MAP+2, Math.min(HALF_MAP-2, camera.position.x));
+        camera.position.z = Math.max(-HALF_MAP+2, Math.min(HALF_MAP-2, camera.position.z));
 
-        // Tàng hình
+        // 2. CƠ CHẾ NÚP LÙM CHÂN THỰC (Phạt tiếng động)
         isHidden = false;
+        if (revealTimer > 0) revealTimer -= delta;
+
         for(let t of trees) {
-            if (Math.hypot(camera.position.x - t.position.x, camera.position.z - t.position.z) < 3.5) {
-                isHidden = true; break;
+            if (Math.hypot(camera.position.x - t.position.x, camera.position.z - t.position.z) < 4.0) {
+                isHidden = true;
+                break;
             }
         }
 
-        // Logic AI
+        if (isHidden) {
+            if (revealTimer <= 0) {
+                statText.innerText = "Đang núp im lặng...";
+                statText.style.color = "#3498db";
+                
+                // Nếu cựa quậy khi núp (bấm di chuyển)
+                if (inputDir.length() > 0) {
+                    // Tỉ lệ lộ cao hơn khi chạy nước rút
+                    let chance = isSprinting ? 0.05 : 0.02; 
+                    if (Math.random() < chance) {
+                        revealTimer = 2.5; // Bị lộ trong 2.5 giây
+                    }
+                }
+            } else {
+                // Đang núp nhưng bị lộ do phát ra tiếng động
+                isHidden = false;
+                statText.innerText = "TIẾNG ĐỘNG LÁ CÂY! LỘ VỊ TRÍ!";
+                statText.style.color = "#ff9f43";
+            }
+        }
+
+        // 3. LOGIC AI NÂNG CẤP & ANIMATION
         if (rodDropCooldown > 0) rodDropCooldown -= delta;
 
         guards.forEach(g => {
             let distToPlayer = Math.hypot(camera.position.x - g.position.x, camera.position.z - g.position.z);
+            let isMoving = false; // Để bật animation
 
             if (g.userData.state === 'chase') {
                 if (isHidden) {
-                    g.position.x += Math.sin(Date.now() * 0.001) * delta * 4;
-                    g.position.z += Math.cos(Date.now() * 0.001) * delta * 4;
-                    statText.innerText = "Đang ẩn nấp trong cây!";
-                    statText.style.color = "#3498db";
+                    // Mất dấu -> Đi tuần ngẫu nhiên
+                    g.position.x += Math.sin(time * 0.5) * delta * 5;
+                    g.position.z += Math.cos(time * 0.5) * delta * 5;
+                    isMoving = true;
+                    g.lookAt(new THREE.Vector3(g.position.x + Math.sin(time*0.5), g.position.y, g.position.z + Math.cos(time*0.5)));
                 } else {
+                    // Đuổi bắt
+                    isMoving = true;
                     let dir = new THREE.Vector3(camera.position.x - g.position.x, 0, camera.position.z - g.position.z).normalize();
                     
                     let nextGX = g.position.x + dir.x * g.userData.speed * delta;
                     let nextGZ = g.position.z + dir.z * g.userData.speed * delta;
                     
+                    // ANTI-STUCK (Chống kẹt tường cơ bản)
+                    let distMoved = g.position.distanceTo(g.userData.oldPos);
+                    if (distMoved < 0.01) g.userData.stuckTimer += delta;
+                    else g.userData.stuckTimer = 0;
+
+                    if (g.userData.stuckTimer > 0.5) {
+                        // Nếu kẹt tường > 0.5s -> né ngang
+                        nextGX += (Math.random() > 0.5 ? 2 : -2);
+                        nextGZ += (Math.random() > 0.5 ? 2 : -2);
+                        g.userData.stuckTimer = 0;
+                    }
+
                     if(!checkWallCollision(new THREE.Vector3(nextGX, g.position.y, g.position.z), 1.5)) g.position.x = nextGX;
                     if(!checkWallCollision(new THREE.Vector3(g.position.x, g.position.y, nextGZ), 1.5)) g.position.z = nextGZ;
 
+                    g.userData.oldPos.copy(g.position);
                     g.lookAt(new THREE.Vector3(camera.position.x, g.position.y, camera.position.z));
                     
-                    if (hasRod) {
-                        statText.innerText = "BỊ PHÁT HIỆN! BỎ CHẠY HOẶC NÚP!";
-                        statText.style.color = "#e74c3c";
+                    if (hasRod && revealTimer <= 0) {
+                        statText.innerText = "BỊ TRUY NÃ! CẮM ĐẦU CHẠY!";
+                        statText.style.color = "#ee5253";
                         
-                        if (distToPlayer < 2.5) {
+                        // Bắt dính
+                        if (distToPlayer < 3.0 && camera.position.y < 8) { // Không bắt được nếu player leo trên nóc cao
                             hasRod = false;
                             handRodGroup.visible = false;
                             rodDropCooldown = 1.0;
-                            ticketGuard = g;
                             
                             droppedRod = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.05, 4, 8), new THREE.MeshLambertMaterial({color: 0x111}));
                             let dropX = camera.position.x + (camera.getWorldDirection(new THREE.Vector3()).x * 2);
@@ -416,18 +550,20 @@
                             ticketProgress = 0;
                             document.getElementById('ticket-bar-container').style.display = 'block';
 
+                            // Guard lùi ra 10m
                             g.userData.state = 'backing_off';
                             let backDir = new THREE.Vector3(g.position.x - dropX, 0, g.position.z - dropZ).normalize();
-                            g.userData.standPos = new THREE.Vector3(dropX + backDir.x * 8, 0, dropZ + backDir.z * 8);
-
+                            g.userData.standPos = new THREE.Vector3(dropX + backDir.x * 10, 0, dropZ + backDir.z * 10);
+                            
                             guards.forEach(otherG => { if(otherG !== g) otherG.userData.state = 'wander'; });
                         }
                     }
                 }
             } 
             else if (g.userData.state === 'backing_off') {
-                statText.innerText = "RỚT CẦN! BẢO VỆ ĐANG LÙI RA VIẾT BIÊN BẢN!";
-                statText.style.color = "#e67e22";
+                isMoving = true;
+                statText.innerText = "RỚT CẦN! NHANH TAY CHỘP LẠI!";
+                statText.style.color = "#ff9f43";
 
                 let d = new THREE.Vector3(g.userData.standPos.x - g.position.x, 0, g.userData.standPos.z - g.position.z);
                 if (d.length() > 0.5) {
@@ -440,17 +576,33 @@
                 }
             }
             else if (g.userData.state === 'writing') {
+                isMoving = false; // Đứng im ghi biên bản
                 g.lookAt(new THREE.Vector3(droppedRod.position.x, g.position.y, droppedRod.position.z));
-                ticketProgress += 8 * delta;
+                ticketProgress += 7 * delta; // Ghi chậm hơn 1 chút cho map to
                 document.getElementById('ticket-bar').style.width = ticketProgress + '%';
 
                 if (ticketProgress >= 100) endGame(false);
             }
+            
+            // --- ANIMATION TAY CHÂN ---
+            if (isMoving) {
+                let walkSpeed = time * (g.userData.state === 'chase' ? 12 : 5);
+                g.userData.limbs.legL.rotation.x = Math.sin(walkSpeed) * 0.8;
+                g.userData.limbs.legR.rotation.x = Math.sin(walkSpeed + Math.PI) * 0.8;
+                g.userData.limbs.armL.rotation.x = Math.sin(walkSpeed + Math.PI) * 0.8;
+                g.userData.limbs.armR.rotation.x = Math.sin(walkSpeed) * 0.8;
+            } else {
+                g.userData.limbs.legL.rotation.x = 0;
+                g.userData.limbs.legR.rotation.x = 0;
+                g.userData.limbs.armL.rotation.x = 0.5; // Tư thế cầm bút viết biên bản
+                g.userData.limbs.armR.rotation.x = 0.5;
+            }
         });
 
+        // 4. LỤM LẠI CẦN CÂU 
         if (!hasRod && droppedRod && rodDropCooldown <= 0) {
             let distToRod = Math.hypot(camera.position.x - droppedRod.position.x, camera.position.z - droppedRod.position.z);
-            if (distToRod < 3.0) {
+            if (distToRod < 3.5 && camera.position.y < 6) { // Lụm khi ở dưới đất
                 hasRod = true;
                 handRodGroup.visible = true;
                 scene.remove(droppedRod);
@@ -460,8 +612,16 @@
             }
         }
 
-        if (hasRod && Math.hypot(camera.position.x - safeZone.position.x, camera.position.z - safeZone.position.z) < 6) {
+        // 5. ĐIỀU KIỆN THẮNG KHI VÀO ĐƯỜNG BIÊN GIỚI
+        if (hasRod && camera.position.z < -HALF_MAP + 25) {
             endGame(true);
+        }
+
+        // Animation đi bộ cho tay cầm cần câu của người chơi
+        if (hasRod && (moveForward || moveBackward || moveLeft || moveRight) && canJump) {
+            handRodGroup.position.y = -0.4 + Math.sin(time * (isSprinting?15:10)) * 0.05;
+        } else {
+            handRodGroup.position.y = -0.4;
         }
 
         renderer.render(scene, camera);
