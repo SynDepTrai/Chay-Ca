@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đại Chiến Trộm Cá - Map Phức Tạp</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1a252f;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background-color: #55aa55; /* Màu cỏ nền */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            margin-top: 10px;
+            border: 2px solid #34495e;
+        }
+        #ui { margin-top: 10px; text-align: center; }
+        .instructions { font-size: 14px; color: #bdc3c7; margin-top: 10px; max-width: 1000px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h2>Trạng thái: <span id="status">Bắt đầu đi câu...</span></h2>
+    </div>
+    
+    <canvas id="gameCanvas" width="1000" height="700"></canvas>
+
+    <div class="instructions">
+        <p><strong>Nâng cấp:</strong> Toà nhà (Xám) và Hồ nước (Xanh) chặn đường. Lợi dụng các góc kẹt để "cắt đuôi" hoặc chặn đường bảo vệ.<br>
+        <strong>Luật cũ:</strong> Di chuyển (W A S D / Mũi tên) - Đẩy (SPACE). Núp bụi cỏ (Xanh đậm). Đích đến là vùng an toàn góc dưới bên phải!</p>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('status');
+
+    let gameOver = false;
+    let keys = {};
+
+    // Các thực thể
+    const player = { x: 50, y: 50, radius: 12, speed: 4, color: '#3498db', hasRod: true, isHidden: false, pushCooldown: 0 };
+    const guard = { x: 800, y: 150, radius: 14, speed: 2.8, color: '#e74c3c', state: 'chase', stunTimer: 0, ticketProgress: 0, patrolTarget: {x: 0, y: 0} };
+    const rod = { x: 0, y: 0, isDropped: false };
+
+    // Vùng tẩu thoát
+    const safeZone = { x: 800, y: 600, width: 200, height: 100 };
+
+    // Bụi cỏ (Dùng để tàng hình - Không cản đường)
+    const bushes = [
+        { x: 120, y: 120, width: 80, height: 80 },
+        { x: 300, y: 550, width: 100, height: 60 },
+        { x: 750, y: 300, width: 90, height: 120 },
+        { x: 50, y: 350, width: 70, height: 150 },
+        { x: 550, y: 100, width: 80, height: 80 }
+    ];
+
+    // Chướng ngại vật (Cản đường - Toà nhà, Tường rào, Hồ nước)
+    const obstacles = [
+        // Hồ nước chính giữa
+        { x: 400, y: 250, width: 200, height: 200, type: 'water' },
+        // Cụm toà nhà khu trên
+        { x: 200, y: 0, width: 100, height: 200, type: 'building' },
+        { x: 200, y: 280, width: 100, height: 100, type: 'building' },
+        // Dãy tường rào
+        { x: 650, y: 150, width: 20, height: 300, type: 'building' },
+        { x: 650, y: 550, width: 20, height: 150, type: 'building' },
+        // Toà nhà khu dưới
+        { x: 400, y: 550, width: 150, height: 100, type: 'building' },
+        { x: 100, y: 500, width: 150, height: 50, type: 'building' }
+    ];
+
+    window.addEventListener('keydown', e => { keys[e.code] = true; });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    function getDistance(x1, y1, x2, y2) {
+        return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    function rectIntersect(x, y, rect) {
+        return x > rect.x && x < rect.x + rect.width && y > rect.y && y < rect.y + rect.height;
+    }
+
+    // THUẬT TOÁN KIỂM TRA VA CHẠM (Tròn & Chữ nhật)
+    function circleRectCollide(circleX, circleY, radius, rect) {
+        let testX = circleX;
+        let testY = circleY;
+        
+        if (circleX < rect.x) testX = rect.x;
+        else if (circleX > rect.x + rect.width) testX = rect.x + rect.width;
+        
+        if (circleY < rect.y) testY = rect.y;
+        else if (circleY > rect.y + rect.height) testY = rect.y + rect.height;
+        
+        let distX = circleX - testX;
+        let distY = circleY - testY;
+        let distance = Math.sqrt((distX*distX) + (distY*distY));
+        
+        return distance <= radius;
+    }
+
+    // HÀM DI CHUYỂN CÓ KIỂM TRA VA CHẠM TRƯỢT (Wall-sliding)
+    function moveEntity(entity, dx, dy) {
+        // Thử đi theo trục X
+        entity.x += dx;
+        // Chặn ở viền map
+        if (entity.x - entity.radius < 0 || entity.x + entity.radius > canvas.width) entity.x -= dx;
+        // Chặn ở chướng ngại vật
+        for (let obs of obstacles) {
+            if (circleRectCollide(entity.x, entity.y, entity.radius, obs)) {
+                entity.x -= dx; // Kẹt X thì lùi X lại
+                break;
+            }
+        }
+
+        // Thử đi theo trục Y
+        entity.y += dy;
+        // Chặn viền map
+        if (entity.y - entity.radius < 0 || entity.y + entity.radius > canvas.height) entity.y -= dy;
+        // Chặn chướng ngại vật
+        for (let obs of obstacles) {
+            if (circleRectCollide(entity.x, entity.y, entity.radius, obs)) {
+                entity.y -= dy; // Kẹt Y thì lùi Y lại
+                break;
+            }
+        }
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        // 1. Nhập liệu và di chuyển Player
+        let dx = 0, dy = 0;
+        if (keys['ArrowUp'] || keys['KeyW']) dy -= player.speed;
+        if (keys['ArrowDown'] || keys['KeyS']) dy += player.speed;
+        if (keys['ArrowLeft'] || keys['KeyA']) dx -= player.speed;
+        if (keys['ArrowRight'] || keys['KeyD']) dx += player.speed;
+        
+        // Chuẩn hóa đường chéo (không chạy nhanh hơn khi bấm 2 phím chéo)
+        if (dx !== 0 && dy !== 0) {
+            dx *= 0.707; dy *= 0.707;
+        }
+        
+        moveEntity(player, dx, dy);
+
+        // 2. Núp bụi cỏ
+        player.isHidden = bushes.some(bush => rectIntersect(player.x, player.y, bush));
+
+        // 3. Cơ chế Đẩy
+        if (player.pushCooldown > 0) player.pushCooldown--;
+        if (keys['Space'] && player.pushCooldown === 0) {
+            let dist = getDistance(player.x, player.y, guard.x, guard.y);
+            if (dist < 50 && guard.state !== 'writing_ticket') {
+                // Đẩy văng ra
+                let pushDx = (guard.x > player.x) ? 40 : -40;
+                let pushDy = (guard.y > player.y) ? 40 : -40;
+                moveEntity(guard, pushDx, pushDy); // Đẩy vẫn bị kẹt tường
+                guard.state = 'stunned';
+                guard.stunTimer = 60;
+                player.pushCooldown = 150;
+                statusText.innerText = "Đã xô ngã bảo vệ!";
+            }
+        }
+
+        // 4. AI Bảo vệ
+        if (guard.state === 'stunned') {
+            guard.stunTimer--;
+            if (guard.stunTimer <= 0) guard.state = 'chase';
+        } 
+        else if (guard.state === 'chase') {
+            statusText.innerText = "Bảo vệ đang săn lùng!";
+            if (!player.isHidden) {
+                let angle = Math.atan2(player.y - guard.y, player.x - guard.x);
+                let gdx = Math.cos(angle) * guard.speed;
+                let gdy = Math.sin(angle) * guard.speed;
+                // AI dùng hệ thống di chuyển trượt tường để tự tìm đường qua góc kẹt
+                moveEntity(guard, gdx, gdy);
+            }
+
+            // Bắt người chơi
+            if (getDistance(player.x, player.y, guard.x, guard.y) < player.radius + guard.radius + 5) {
+                if (player.hasRod) {
+                    player.hasRod = false;
+                    rod.isDropped = true;
+                    // Rớt cần ngay vị trí hiện tại
+                    rod.x = player.x; rod.y = player.y;
+                    guard.state = 'writing_ticket';
+                    guard.ticketProgress = 0;
+                }
+            }
+        } 
+        else if (guard.state === 'writing_ticket' || guard.state === 'distracted') {
+            guard.ticketProgress += 0.15;
+            
+            // Random hớ hênh
+            if (Math.random() < 0.02) {
+                guard.state = (guard.state === 'writing_ticket') ? 'distracted' : 'writing_ticket';
+                guard.patrolTarget = {
+                    x: rod.x + (Math.random() * 200 - 100), 
+                    y: rod.y + (Math.random() * 200 - 100)
+                };
+            }
+
+            if (guard.state === 'distracted') {
+                statusText.innerText = "Bảo vệ hớ hênh đi dạo! Lụm cần đi!";
+                let angle = Math.atan2(guard.patrolTarget.y - guard.y, guard.patrolTarget.x - guard.x);
+                moveEntity(guard, Math.cos(angle) * (guard.speed * 0.5), Math.sin(angle) * (guard.speed * 0.5));
+            } else {
+                statusText.innerText = `Đang lập biên bản... ${Math.floor(guard.ticketProgress)}%`;
+                if (getDistance(guard.x, guard.y, rod.x, rod.y) > 25) {
+                    let angle = Math.atan2(rod.y - guard.y, rod.x - guard.x);
+                    moveEntity(guard, Math.cos(angle) * guard.speed, Math.sin(angle) * guard.speed);
+                }
+            }
+
+            if (guard.ticketProgress >= 100) {
+                statusText.innerText = "LẬP BIÊN BẢN XONG! BẠN BỊ TỊCH THU ĐỒ!";
+                statusText.style.color = "#e74c3c";
+                gameOver = true;
+            }
+        }
+
+        // 5. Lụm lại cần
+        if (rod.isDropped && getDistance(player.x, player.y, rod.x, rod.y) < 30) {
+            player.hasRod = true;
+            rod.isDropped = false;
+            guard.state = 'chase'; 
+            guard.ticketProgress = 0;
+            statusText.innerText = "Cướp được cần! Tẩu thoát lẹ!";
+        }
+
+        // 6. Thắng game
+        if (player.hasRod && rectIntersect(player.x, player.y, safeZone)) {
+            statusText.innerText = "VỀ ĐÍCH AN TOÀN! CHÚC MỪNG CHIẾN THẮNG!";
+            statusText.style.color = "#f1c40f";
+            gameOver = true;
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Vùng an toàn
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(safeZone.x, safeZone.y, safeZone.width, safeZone.height);
+        ctx.fillStyle = 'black';
+        ctx.font = '20px Arial';
+        ctx.fillText('LỐI THOÁT', safeZone.x + 40, safeZone.y + 55);
+
+        // Vẽ Chướng ngại vật (Hồ và Toà nhà)
+        obstacles.forEach(obs => {
+            if (obs.type === 'water') {
+                ctx.fillStyle = '#3498db'; // Nước
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillRect(obs.x + 10, obs.y + 10, obs.width - 20, 5); // Gợn sóng
+            } else if (obs.type === 'building') {
+                ctx.fillStyle = '#7f8c8d'; // Tường xám
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.fillStyle = '#2c3e50'; // Mái viền
+                ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+            }
+        });
+
+        // Vẽ Bụi cỏ
+        ctx.fillStyle = '#27ae60';
+        bushes.forEach(bush => {
+            ctx.fillRect(bush.x, bush.y, bush.width, bush.height);
+            // Điểm xuyết lá cỏ
+            ctx.fillStyle = '#2ecc71';
+            ctx.fillRect(bush.x + 10, bush.y + 10, 10, 10);
+            ctx.fillRect(bush.x + 30, bush.y + 30, 15, 10);
+            ctx.fillStyle = '#27ae60'; // Trả lại màu nền bụi cỏ
+        });
+
+        // Vẽ Cần câu rơi
+        if (rod.isDropped) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(rod.x - 2, rod.y - 20, 4, 40); // Thân cần
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(rod.x, rod.y + 20, 3, 0, Math.PI * 2); // Phao câu
+            ctx.fill();
+            
+            // Thanh biên bản
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(guard.x - 20, guard.y - 30, 40, 5);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(guard.x - 20, guard.y - 30, (guard.ticketProgress / 100) * 40, 5);
+        }
+
+        // Vẽ AI Bảo vệ
+        ctx.fillStyle = guard.color;
+        ctx.beginPath();
+        ctx.arc(guard.x, guard.y, guard.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#c0392b'; // Mũ bảo vệ
+        ctx.fillRect(guard.x - 10, guard.y - 14, 20, 8);
+        
+        if (guard.state === 'stunned') {
+            ctx.fillStyle = 'white';
+            ctx.fillText('💫', guard.x - 10, guard.y - 20);
+        }
+
+        // Vẽ Player
+        ctx.globalAlpha = player.isHidden ? 0.4 : 1.0;
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        if (player.hasRod) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(player.x - 2, player.y - 20, 4, 30);
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+</script>
+</body>
+</html>
