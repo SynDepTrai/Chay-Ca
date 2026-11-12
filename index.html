@@ -45,10 +45,10 @@
         <div id="menu">
             <h1 id="menu-title">ĐẠI CHIẾN TRỘM CÁ 3D</h1>
             <p class="instructions" id="menu-desc">
-                <strong>W, A, S, D:</strong> Di chuyển theo góc nhìn camera | <strong>SPACE:</strong> Nhảy<br>
+                <strong>W, A, S, D:</strong> Di chuyển theo góc nhìn | <strong>SPACE:</strong> Nhảy<br>
                 <strong>Giữ SHIFT:</strong> Chạy nước rút (Nhanh hơn bảo vệ)<br><br>
                 1. Núp vào <strong>Cây Thông</strong> để xoá dấu vết.<br>
-                2. Nếu bị tóm, bảo vệ sẽ <strong>lùi ra xa</strong> để viết biên bản. <br>Hãy nhanh chân lách vào cướp lại Cần Câu dưới đất.<br>
+                2. Nếu bị tóm, bảo vệ sẽ <strong>lùi ra xa</strong> để viết biên bản. <br>Hãy lách lại cướp Cần Câu dưới đất.<br>
                 3. Đích đến là <strong>Vòng Tròn Sáng Vàng</strong>.
             </p>
             <button id="play-btn">NHẤN ĐỂ CHƠI</button>
@@ -84,31 +84,24 @@
     dirLight.shadow.camera.right = 100;
     scene.add(dirLight);
 
-    // --- TẠO TEXTURE BÃI CỎ BẰNG CODE (Không cần load file) ---
     const grassCanvas = document.createElement('canvas');
     grassCanvas.width = 256; grassCanvas.height = 256;
     const ctx = grassCanvas.getContext('2d');
     ctx.fillStyle = '#55aa55'; ctx.fillRect(0,0,256,256);
     ctx.fillStyle = '#4e9a4e';
     for(let i=0; i<300; i++){
-        ctx.fillRect(Math.random()*256, Math.random()*256, 4, 12); // Vẽ các ngọn cỏ nhỏ
+        ctx.fillRect(Math.random()*256, Math.random()*256, 4, 12);
     }
     const grassTex = new THREE.CanvasTexture(grassCanvas);
     grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
     grassTex.repeat.set(50, 50);
 
-    // Trạng thái Game
-    let isPlaying = false;
-    let gameOver = false;
-    let hasRod = true;
-    let ticketProgress = 0;
-    let isHidden = false;
-    let rodDropCooldown = 0;
+    let isPlaying = false, gameOver = false, hasRod = true;
+    let ticketProgress = 0, isHidden = false, rodDropCooldown = 0;
 
     let buildings = [], trees = [], guards = [];
     let safeZone, droppedRod, ticketGuard;
     
-    // Cần câu trên tay
     const handRodGroup = new THREE.Group();
     const rodStick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 2, 8), new THREE.MeshLambertMaterial({ color: 0x111111 }));
     rodStick.rotation.x = Math.PI / 2;
@@ -120,7 +113,6 @@
     camera.add(handRodGroup);
     scene.add(camera);
 
-    // Controls
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, isSprinting = false;
     let canJump = false;
     let velocity = new THREE.Vector3();
@@ -150,7 +142,6 @@
 
     document.addEventListener('mousemove', (e) => {
         if (isPlaying && document.pointerLockElement === document.body) {
-            euler.setFromQuaternion(camera.quaternion);
             euler.y -= e.movementX * 0.002;
             euler.x -= e.movementY * 0.002;
             euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
@@ -218,13 +209,11 @@
         if(droppedRod) scene.remove(droppedRod);
         buildings = []; trees = []; guards = [];
 
-        // Ground
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ map: grassTex }));
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Safe Zone (Vòng tròn phát sáng)
         safeZone = new THREE.Mesh(
             new THREE.CylinderGeometry(6, 6, 0.2, 32), 
             new THREE.MeshBasicMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.6 })
@@ -236,7 +225,6 @@
         pillar.position.y = 15;
         safeZone.add(pillar);
 
-        // Buildings
         const wallMat = new THREE.MeshLambertMaterial({ color: 0x95a5a6 });
         for (let i = 0; i < 45; i++) {
             let x = Math.random() * 180 - 90;
@@ -247,4 +235,245 @@
             let w = Math.random() * 8 + 6;
             let d = Math.random() * 8 + 6;
             let h = Math.random() * 15 + 8;
-            let b = new THREE.Mesh(new
+            let b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+            b.position.set(x, h/2, z);
+            b.castShadow = true; b.receiveShadow = true;
+            
+            b.userData = { width: w, depth: d };
+            scene.add(b);
+            buildings.push(b);
+        }
+
+        for (let i = 0; i < 40; i++) {
+            let x = Math.random() * 180 - 90;
+            let z = Math.random() * 180 - 90;
+            let t = createTreeModel();
+            t.position.set(x, 0, z);
+            scene.add(t);
+            trees.push(t);
+        }
+
+        for (let i = 0; i < 3; i++) {
+            let g = createGuardModel();
+            let spawnX = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 40);
+            let spawnZ = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 40);
+            g.position.set(spawnX, 0, spawnZ);
+            g.userData = { state: 'chase', speed: 14 + Math.random() * 3, standPos: new THREE.Vector3() };
+            scene.add(g);
+            guards.push(g);
+        }
+    }
+
+    function checkWallCollision(newPos, radius) {
+        for (let b of buildings) {
+            let minX = b.position.x - b.userData.width/2 - radius;
+            let maxX = b.position.x + b.userData.width/2 + radius;
+            let minZ = b.position.z - b.userData.depth/2 - radius;
+            let maxZ = b.position.z + b.userData.depth/2 + radius;
+            if (newPos.x > minX && newPos.x < maxX && newPos.z > minZ && newPos.z < maxZ) return true;
+        }
+        return false;
+    }
+
+    function startGame() {
+        createMap();
+        camera.position.set(0, 3, 0);
+        euler.set(0,0,0);
+        camera.quaternion.setFromEuler(euler);
+        velocity.set(0,0,0);
+        hasRod = true;
+        gameOver = false;
+        isPlaying = true;
+        ticketProgress = 0;
+        rodDropCooldown = 0;
+        
+        handRodGroup.visible = true;
+        document.getElementById('ticket-bar-container').style.display = 'none';
+        statText.innerText = "Đang tẩu thoát";
+        statText.style.color = "#2ecc71";
+    }
+
+    function endGame(isWin) {
+        gameOver = true;
+        isPlaying = false;
+        document.exitPointerLock();
+        menu.style.display = 'flex';
+        playBtn.innerText = "CHƠI LẠI TRẬN KHÁC";
+        
+        if (isWin) {
+            document.getElementById('menu-title').innerText = "VƯỢT NGỤC THÀNH CÔNG!";
+            document.getElementById('menu-title').style.color = "#f1c40f";
+            document.getElementById('menu-desc').innerText = "Bạn đã mang thành công chiếc cần câu ra khỏi khu vực!";
+        } else {
+            document.getElementById('menu-title').innerText = "BẠN ĐÃ BỊ TỊCH THU CẦN!";
+            document.getElementById('menu-title').style.color = "#e74c3c";
+            document.getElementById('menu-desc').innerText = "Biên bản đã lập xong. Đồ nghề của bạn đã bay màu.";
+        }
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (!isPlaying) { renderer.render(scene, camera); return; }
+
+        const delta = clock.getDelta();
+
+        // Lấy hướng nhìn chuẩn của Camera
+        let forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        let right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        // Đọc Phím
+        let moveX = Number(moveRight) - Number(moveLeft); // D: 1, A: -1
+        let moveZ = Number(moveForward) - Number(moveBackward); // W: 1, S: -1
+        
+        let inputDir = new THREE.Vector2(moveX, moveZ);
+        if (inputDir.length() > 0) inputDir.normalize();
+
+        // Vật lý
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+        velocity.y -= 40.0 * delta; 
+
+        let speedMultiplier = isSprinting ? 220.0 : 100.0; 
+        
+        // CỘNG DỒN GIA TỐC VÀO HƯỚNG NHÌN THỰC TẾ
+        velocity.x += (right.x * inputDir.x + forward.x * inputDir.y) * speedMultiplier * delta;
+        velocity.z += (right.z * inputDir.x + forward.z * inputDir.y) * speedMultiplier * delta;
+
+        let nextX = camera.position.x + (velocity.x * delta);
+        let nextZ = camera.position.z + (velocity.z * delta);
+
+        if (!checkWallCollision(new THREE.Vector3(nextX, camera.position.y, camera.position.z), 1.0)) camera.position.x = nextX;
+        else velocity.x = 0;
+        
+        if (!checkWallCollision(new THREE.Vector3(camera.position.x, camera.position.y, nextZ), 1.0)) camera.position.z = nextZ;
+        else velocity.z = 0;
+
+        camera.position.y += (velocity.y * delta);
+        if (camera.position.y < 3) {
+            velocity.y = 0;
+            camera.position.y = 3;
+            canJump = true;
+        }
+        
+        camera.position.x = Math.max(-98, Math.min(98, camera.position.x));
+        camera.position.z = Math.max(-98, Math.min(98, camera.position.z));
+
+        // Tàng hình
+        isHidden = false;
+        for(let t of trees) {
+            if (Math.hypot(camera.position.x - t.position.x, camera.position.z - t.position.z) < 3.5) {
+                isHidden = true; break;
+            }
+        }
+
+        // Logic AI
+        if (rodDropCooldown > 0) rodDropCooldown -= delta;
+
+        guards.forEach(g => {
+            let distToPlayer = Math.hypot(camera.position.x - g.position.x, camera.position.z - g.position.z);
+
+            if (g.userData.state === 'chase') {
+                if (isHidden) {
+                    g.position.x += Math.sin(Date.now() * 0.001) * delta * 4;
+                    g.position.z += Math.cos(Date.now() * 0.001) * delta * 4;
+                    statText.innerText = "Đang ẩn nấp trong cây!";
+                    statText.style.color = "#3498db";
+                } else {
+                    let dir = new THREE.Vector3(camera.position.x - g.position.x, 0, camera.position.z - g.position.z).normalize();
+                    
+                    let nextGX = g.position.x + dir.x * g.userData.speed * delta;
+                    let nextGZ = g.position.z + dir.z * g.userData.speed * delta;
+                    
+                    if(!checkWallCollision(new THREE.Vector3(nextGX, g.position.y, g.position.z), 1.5)) g.position.x = nextGX;
+                    if(!checkWallCollision(new THREE.Vector3(g.position.x, g.position.y, nextGZ), 1.5)) g.position.z = nextGZ;
+
+                    g.lookAt(new THREE.Vector3(camera.position.x, g.position.y, camera.position.z));
+                    
+                    if (hasRod) {
+                        statText.innerText = "BỊ PHÁT HIỆN! BỎ CHẠY HOẶC NÚP!";
+                        statText.style.color = "#e74c3c";
+                        
+                        if (distToPlayer < 2.5) {
+                            hasRod = false;
+                            handRodGroup.visible = false;
+                            rodDropCooldown = 1.0;
+                            ticketGuard = g;
+                            
+                            droppedRod = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.05, 4, 8), new THREE.MeshLambertMaterial({color: 0x111}));
+                            let dropX = camera.position.x + (camera.getWorldDirection(new THREE.Vector3()).x * 2);
+                            let dropZ = camera.position.z + (camera.getWorldDirection(new THREE.Vector3()).z * 2);
+                            droppedRod.position.set(dropX, 0.2, dropZ);
+                            droppedRod.rotation.set(Math.PI/2, 0, Math.random() * Math.PI);
+                            scene.add(droppedRod);
+
+                            ticketProgress = 0;
+                            document.getElementById('ticket-bar-container').style.display = 'block';
+
+                            g.userData.state = 'backing_off';
+                            let backDir = new THREE.Vector3(g.position.x - dropX, 0, g.position.z - dropZ).normalize();
+                            g.userData.standPos = new THREE.Vector3(dropX + backDir.x * 8, 0, dropZ + backDir.z * 8);
+
+                            guards.forEach(otherG => { if(otherG !== g) otherG.userData.state = 'wander'; });
+                        }
+                    }
+                }
+            } 
+            else if (g.userData.state === 'backing_off') {
+                statText.innerText = "RỚT CẦN! BẢO VỆ ĐANG LÙI RA VIẾT BIÊN BẢN!";
+                statText.style.color = "#e67e22";
+
+                let d = new THREE.Vector3(g.userData.standPos.x - g.position.x, 0, g.userData.standPos.z - g.position.z);
+                if (d.length() > 0.5) {
+                    d.normalize();
+                    g.position.x += d.x * (g.userData.speed * delta);
+                    g.position.z += d.z * (g.userData.speed * delta);
+                    g.lookAt(new THREE.Vector3(droppedRod.position.x, g.position.y, droppedRod.position.z));
+                } else {
+                    g.userData.state = 'writing';
+                }
+            }
+            else if (g.userData.state === 'writing') {
+                g.lookAt(new THREE.Vector3(droppedRod.position.x, g.position.y, droppedRod.position.z));
+                ticketProgress += 8 * delta;
+                document.getElementById('ticket-bar').style.width = ticketProgress + '%';
+
+                if (ticketProgress >= 100) endGame(false);
+            }
+        });
+
+        if (!hasRod && droppedRod && rodDropCooldown <= 0) {
+            let distToRod = Math.hypot(camera.position.x - droppedRod.position.x, camera.position.z - droppedRod.position.z);
+            if (distToRod < 3.0) {
+                hasRod = true;
+                handRodGroup.visible = true;
+                scene.remove(droppedRod);
+                droppedRod = null;
+                document.getElementById('ticket-bar-container').style.display = 'none';
+                guards.forEach(g => { g.userData.state = 'chase'; });
+            }
+        }
+
+        if (hasRod && Math.hypot(camera.position.x - safeZone.position.x, camera.position.z - safeZone.position.z) < 6) {
+            endGame(true);
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>
