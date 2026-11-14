@@ -18,10 +18,38 @@
             font-family: 'Inter', sans-serif;
             user-select: none;
         }
-        canvas {
-            display: block;
+        /* CHỈ ÁP DỤNG FULLSCREEN CHO CANVAS 3D WEBGL, TUYỆT ĐỐI KHÔNG ÁP DỤNG CHO MINI-MAP */
+        #webgl-container {
+            position: fixed;
+            inset: 0;
             width: 100vw;
             height: 100vh;
+            z-index: 1;
+        }
+        #webgl-container canvas {
+            display: block;
+            width: 100vw !important;
+            height: 100vh !important;
+        }
+        /* KHÓA CỨNG KÍCH THƯỚC MINI-MAP 96x96PX Ở GÓC PHẢI TRÊN */
+        #minimap-box {
+            position: fixed !important;
+            top: 14px !important;
+            right: 14px !important;
+            width: 112px !important;
+            max-width: 112px !important;
+            z-index: 30 !important;
+            flex: none !important;
+        }
+        #radar-canvas {
+            display: block !important;
+            width: 96px !important;
+            height: 96px !important;
+            max-width: 96px !important;
+            max-height: 96px !important;
+            min-width: 96px !important;
+            min-height: 96px !important;
+            flex: none !important;
         }
         .voxel-font {
             font-family: 'VT323', monospace;
@@ -48,6 +76,9 @@
 </head>
 <body class="relative w-screen h-screen overflow-hidden text-white">
 
+    <!-- CONTAINER CHỨA CANVAS 3D THREE.JS -->
+    <div id="webgl-container"></div>
+
     <!-- VIGNETTE HIỆU ỨNG TRẠNG THÁI -->
     <div id="vignette" class="fixed inset-0 z-10"></div>
 
@@ -55,44 +86,52 @@
     <div id="crosshair" class="fixed inset-0 pointer-events-none z-20 flex items-center justify-center hidden">
         <div class="relative flex items-center justify-center">
             <div class="w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_6px_#000]"></div>
-            <div class="absolute w-5 h-0.5 bg-white/60 -left-6"></div>
-            <div class="absolute w-5 h-0.5 bg-white/60 -right-6"></div>
-            <div class="absolute h-5 w-0.5 bg-white/60 -top-6"></div>
-            <div class="absolute h-5 w-0.5 bg-white/60 -bottom-6"></div>
+            <div class="absolute w-4 h-0.5 bg-white/60 -left-5"></div>
+            <div class="absolute w-4 h-0.5 bg-white/60 -right-5"></div>
+            <div class="absolute h-4 w-0.5 bg-white/60 -top-5"></div>
+            <div class="absolute h-4 w-0.5 bg-white/60 -bottom-5"></div>
         </div>
     </div>
 
     <!-- HUD GIAO DIỆN TRONG GAME -->
-    <div id="hud" class="fixed inset-0 pointer-events-none z-20 p-4 sm:p-6 flex flex-col justify-between hidden">
+    <div id="hud" class="fixed inset-0 pointer-events-none z-20 p-3 sm:p-4 flex flex-col justify-between hidden">
         
-        <!-- Hàng trên: Trạng thái & Radar mini -->
-        <div class="flex flex-wrap justify-between items-start gap-4">
+        <!-- Hàng trên: Trạng thái bên trái & Cảnh báo biên bản ở giữa -->
+        <div class="flex justify-between items-start gap-3 pr-28">
             
-            <!-- Bảng trạng thái nhân vật -->
-            <div class="bg-slate-900/85 backdrop-blur-md border-2 border-slate-700/80 rounded-2xl p-4 shadow-2xl min-w-[270px] space-y-2.5">
-                <div class="flex items-center justify-between border-b border-slate-700/80 pb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-amber-400">🎣 Trộm Cá Tẩu Thoát</span>
-                    <span id="hud-North-dist" class="text-xs font-extrabold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-400/30">Cách đích: 350m</span>
+            <!-- Bảng trạng thái nhân vật gọn gàng -->
+            <div class="bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl w-[245px] space-y-1.5">
+                <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">🎣 Trộm Cá 3D</span>
+                    <span id="hud-North-dist" class="text-[11px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30">Đích Bắc: 350m</span>
+                </div>
+
+                <!-- Trạng thái Cá Câu Được -->
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400">Chiến lợi phẩm:</span>
+                    <span id="hud-fish-state" class="font-bold text-amber-300">
+                        🌊 Chưa câu cá (0/1)
+                    </span>
                 </div>
 
                 <!-- Trạng thái Cần Câu -->
-                <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-400">Vật phẩm:</span>
-                    <span id="hud-rod-state" class="font-bold text-emerald-400 flex items-center gap-1.5">
-                        <span>🐟 Đang giữ Cần Câu</span>
+                    <span id="hud-rod-state" class="font-bold text-emerald-400 flex items-center gap-1">
+                        <span>🎣 Đang cầm Cần Câu</span>
                     </span>
                 </div>
 
                 <!-- Trạng thái Ẩn Nấp -->
-                <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-400">Ngụy trang:</span>
-                    <span id="hud-stealth-state" class="font-bold text-slate-200 px-2 py-0.5 rounded bg-slate-800">
+                    <span id="hud-stealth-state" class="font-bold text-slate-200 px-1.5 py-0.5 rounded bg-slate-800">
                         👀 Đang lộ diện
                     </span>
                 </div>
 
                 <!-- Trạng thái Vận Động (Chạy / Leo tường) -->
-                <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-400">Vận động:</span>
                     <span id="hud-move-state" class="font-bold text-sky-400">
                         🚶 Đi bộ
@@ -100,73 +139,83 @@
                 </div>
 
                 <!-- Trạng thái Báo động AI -->
-                <div class="flex items-center justify-between text-sm pt-1 border-t border-slate-800">
+                <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
                     <span class="text-slate-400">Bảo vệ:</span>
                     <span id="hud-ai-state" class="font-bold text-emerald-400">
-                        🔍 Đang tuần tra (4)
+                        🔍 Tuần tra (4)
                     </span>
                 </div>
             </div>
 
             <!-- Cảnh báo Lập Biên Bản ở giữa trên màn hình -->
-            <div id="citation-panel" class="hidden flex-1 max-w-md mx-auto bg-red-950/90 border-2 border-red-500 rounded-2xl p-4 shadow-[0_0_40px_rgba(239,68,68,0.5)] animate-pulse-fast">
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-sm font-black uppercase tracking-wider text-red-300 flex items-center gap-2">
+            <div id="citation-panel" class="hidden flex-1 max-w-md mx-auto bg-red-950/90 border-2 border-red-500 rounded-2xl p-3.5 shadow-[0_0_40px_rgba(239,68,68,0.5)] animate-pulse-fast">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs sm:text-sm font-black uppercase tracking-wider text-red-300 flex items-center gap-1.5">
                         🚨 BẢO VỆ ĐANG LẬP BIÊN BẢN!
                     </span>
-                    <span id="citation-percent" class="text-lg font-black text-white">0%</span>
+                    <span id="citation-percent" class="text-base font-black text-white">0%</span>
                 </div>
-                <div class="w-full h-4 bg-red-900/80 rounded-full overflow-hidden border border-red-400/50 p-0.5">
+                <div class="w-full h-3.5 bg-red-900/80 rounded-full overflow-hidden border border-red-400/50 p-0.5">
                     <div id="citation-bar" class="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 rounded-full transition-all duration-75" style="width: 0%;"></div>
                 </div>
-                <p class="text-xs text-red-200 mt-2 font-medium text-center">
+                <p class="text-[11px] text-red-200 mt-1.5 font-medium text-center">
                     ⚡ Cần câu đã rơi! Lách qua góc khuất (10m) để chạm vào <span class="text-amber-300 font-bold">Cần Câu Phát Sáng</span> trước khi đạt 100%!
                 </p>
             </div>
+        </div>
 
-            <!-- Radar / La bàn Mini Góc Phải Trên -->
-            <div class="bg-slate-900/85 backdrop-blur-md border-2 border-slate-700/80 rounded-2xl p-3 shadow-2xl flex flex-col items-center">
-                <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">La Bàn Bắc (Vùng Vàng)</div>
-                <canvas id="radar-canvas" width="130" height="130" class="rounded-full border border-slate-600 bg-slate-950"></canvas>
-                <div class="flex gap-3 mt-2 text-[10px] text-slate-300 font-semibold">
-                    <span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-amber-400 inline-block"></i> Đích Bắc</span>
-                    <span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-red-500 inline-block"></i> Bảo vệ</span>
-                    <span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></i> Cần câu</span>
+        <!-- MINI-MAP GÓC PHẢI TRÊN (KHÓA CỨNG 96x96PX, KHÔNG BAO GIỜ TRÀN MÀN HÌNH) -->
+        <div id="minimap-box" class="bg-slate-900/90 backdrop-blur-md border border-slate-700/90 rounded-xl p-2 shadow-xl flex flex-col items-center pointer-events-auto">
+            <div class="w-full flex items-center justify-between text-[9px] font-extrabold text-slate-300 uppercase tracking-wider mb-1 px-0.5">
+                <span>Bắc (Đích)</span>
+                <button id="btn-toggle-map" title="Ẩn/Hiện Radar (Phím M)" class="text-amber-400 hover:text-amber-300 font-black cursor-pointer">[M]</button>
+            </div>
+            <div id="radar-body" class="flex flex-col items-center">
+                <canvas id="radar-canvas" width="96" height="96" style="width:96px;height:96px;" class="rounded-full border border-slate-600 bg-slate-950"></canvas>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1.5 text-[9px] text-slate-300 font-semibold leading-tight">
+                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></i>Đích</span>
+                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></i>Bảo vệ</span>
+                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block"></i>Sông</span>
+                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block"></i>Cá</span>
                 </div>
             </div>
         </div>
 
-        <!-- Thông báo trung tâm (Tiếng động sột soạt / Nhặt lại cần / Leo tường) -->
+        <!-- Thông báo trung tâm & Hướng dẫn Câu Cá -->
         <div class="flex flex-col items-center justify-center space-y-2 my-auto">
-            <div id="toast-alert" class="hidden px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base shadow-2xl border-2 transition-all"></div>
+            <div id="fishing-prompt" class="hidden px-4 py-2 rounded-xl bg-sky-950/90 border-2 border-sky-400 text-sky-100 font-extrabold text-xs sm:text-sm shadow-2xl">
+                🎣 Nhấn <span class="text-amber-300">[Click Trái]</span> hoặc <span class="text-amber-300">[Phím F]</span> để quăng câu xuống sông!
+            </div>
+            <div id="toast-alert" class="hidden px-4 py-2 rounded-xl font-extrabold text-xs sm:text-sm shadow-2xl border-2 transition-all"></div>
         </div>
 
         <!-- Hàng dưới: Hướng dẫn nhanh phím tắt -->
         <div class="flex justify-between items-end">
-            <div class="bg-slate-900/75 backdrop-blur-sm border border-slate-700/70 rounded-xl px-4 py-2 text-xs text-slate-300 hidden sm:flex items-center gap-4">
+            <div class="bg-slate-900/80 backdrop-blur-sm border border-slate-700/70 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 hidden sm:flex flex-wrap items-center gap-3">
                 <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">W A S D</kbd> Di chuyển</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">Shift</kbd> Chạy nước rút</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">Space</kbd> Nhảy</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-bold">Giữ W sát tường</kbd> Parkour leo mái nhà</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-sky-300 font-bold">Click Trái / F</kbd> Quăng câu & Giật cá</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">Shift</kbd> Chạy nhanh</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-bold">Đè W sát tường</kbd> Leo mái nhà</span>
                 <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-emerald-300 font-bold">Đứng im ở Cây Thông</kbd> Tàng hình</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-slate-300 font-bold">M</kbd> Ẩn/Hiện Map</span>
             </div>
 
-            <div class="bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-400 ml-auto">
-                Nhấn <kbd class="text-white font-bold">ESC</kbd> để tạm dừng / hiện chuột
+            <div class="bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-1.5 text-[11px] text-slate-400 ml-auto">
+                Nhấn <kbd class="text-white font-bold">ESC</kbd> để tạm dừng
             </div>
         </div>
     </div>
 
     <!-- MÀN HÌNH MENU CHÍNH / TẠM DỪNG / KẾT THÚC -->
-    <div id="menu-overlay" class="fixed inset-0 z-30 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div id="menu-overlay" class="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
         <div class="max-w-2xl w-full bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 sm:p-8 shadow-[0_20px_70px_rgba(0,0,0,0.8)] text-center relative overflow-hidden">
             
             <!-- Trang trí đỉnh thẻ -->
-            <div class="w-full h-2 bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 absolute top-0 left-0"></div>
+            <div class="w-full h-2 bg-gradient-to-r from-emerald-400 via-sky-400 to-amber-400 absolute top-0 left-0"></div>
 
             <!-- Badge -->
             <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase tracking-widest mb-3">
-                🧊 3D Voxel Stealth & Parkour Game
+                🧊 3D Voxel Fishing, Stealth & Parkour
             </div>
 
             <!-- Tiêu đề -->
@@ -174,7 +223,7 @@
                 TRỘM CÁ TẨU THOÁT
             </h1>
             <p id="menu-subtitle" class="text-slate-300 text-sm sm:text-base max-w-xl mx-auto mb-6">
-                Bạn vừa câu trộm được con cá quý tại khu đô thị Voxel! Hãy cầm chặt cần câu và chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn và lập biên bản!
+                Hãy tiến ra <span class="text-sky-400 font-bold">Dòng Sông Voxel</span> ở giữa bản đồ, quăng cần câu trộm 1 chú cá quý rồi chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn!
             </p>
 
             <!-- Hộp thông báo Kết quả trận đấu (Ẩn khi mới vào) -->
@@ -183,8 +232,12 @@
                 <p id="result-desc" class="text-sm text-slate-200"></p>
             </div>
 
-            <!-- Danh sách 5 Cơ chế nổi bật -->
+            <!-- Danh sách Cơ chế nổi bật -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left mb-7">
+                <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
+                    <div class="font-bold text-sky-400 text-sm mb-1">🎣 Câu Cá 3D Dưới Sông Thật</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">Ra bờ sông hoặc cầu gỗ, nhấn <b class="text-white">Click Trái / F</b> để quăng phao. Khi cá bơi lại đớp mồi làm phao chìm, nhấn lần nữa để giật cá lên cần!</p>
+                </div>
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
                     <div class="font-bold text-amber-400 text-sm mb-1">🏃 Parkour & Chạy Nước Rút</div>
                     <p class="text-xs text-slate-300 leading-relaxed">Giữ <b class="text-white">Shift</b> để chạy nhanh hơn bảo vệ. Tiến sát tòa nhà và đè <b class="text-white">W</b> để tự động bám tường trèo lên nóc nhà!</p>
@@ -195,18 +248,14 @@
                 </div>
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
                     <div class="font-bold text-rose-400 text-sm mb-1">📋 Rơi Cần Câu & Lập Biên Bản</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Khi bị bắt, cần câu rơi xuống đất, bảo vệ lùi ra <b class="text-white">10m</b> đứng canh và lập biên bản (0% -> 100%). Hãy lách qua góc khuất để nhặt lại!</p>
-                </div>
-                <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
-                    <div class="font-bold text-sky-400 text-sm mb-1">🧭 Vùng Vàng Phía Bắc (400x400)</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Đem cần câu chạm vào bức tường ánh sáng vàng khổng lồ ở biên giới phía Bắc (<b class="text-white">Z = -195</b>) để giành chiến thắng!</p>
+                    <p class="text-xs text-slate-300 leading-relaxed">Khi bị bắt, cần câu rơi xuống đất, bảo vệ lùi ra <b class="text-white">10m</b> đứng canh và lập biên bản (0% -> 100%). Hãy lách góc khuất để nhặt lại!</p>
                 </div>
             </div>
 
             <!-- Các nút điều khiển -->
             <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button id="btn-play" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-base shadow-[0_10px_25px_rgba(16,185,129,0.4)] transition transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer">
-                    ▶️ BẮT ĐẦU TẨU THOÁT (KHÓA CHUỘT)
+                    ▶️ BẮT ĐẦU TRẬN ĐẤU (KHÓA CHUỘT)
                 </button>
                 <button id="btn-reset" class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/40 font-extrabold text-sm transition transform hover:-translate-y-0.5 cursor-pointer">
                     🔄 TẠO MAP NGẪU NHIÊN MỚI
@@ -223,6 +272,9 @@
         const WORLD_SIZE = 400;
         const HALF_WORLD = WORLD_SIZE / 2;
         const NORTH_ESCAPE_Z = -192; // Biên giới phía Bắc nơi có cổng hào quang vàng
+        const RIVER_HALF_WIDTH = 14; // Chiều rộng một bên dòng sông (tổng rộng 28m)
+        const BRIDGE_X_LIST = [-95, 0, 95]; // 3 cây cầu gỗ bắc qua sông
+        const BRIDGE_WIDTH = 10;
 
         const PLAYER_EYE_HEIGHT = 2.6;
         const PLAYER_RADIUS = 0.9;
@@ -237,28 +289,43 @@
         const GUARD_CHASE_SPEED = 16.5;
         const GUARD_CATCH_DIST = 2.6;
         const GUARD_CAMP_DIST = 10.0; // Lùi ra xa 10 mét khi bắt được
-        const CITATION_RATE = 7.2;    // Tốc độ chạy thanh biên bản (%/giây) -> ~14 giây đầy 100%
+        const CITATION_RATE = 7.2;    // Tốc độ chạy thanh biên bản (%/giây)
 
         // ============================================================================
         // 2. BIẾN TOÀN CỤC & TRẠNG THÁI (STATE)
         // ============================================================================
         let scene, camera, renderer, clock;
-        let worldGroup; // Chứa toàn bộ công trình, cây cối để dễ reset map
+        let worldGroup; // Chứa toàn bộ công trình, sông, cá, cây cối để dễ reset map
 
         // Danh sách thực thể va chạm và tương tác
         let buildings = []; // { minX, maxX, minZ, maxZ, height, x, z, w, d }
         let pineTrees = []; // { x, z, radius }
         let guards = [];    // Danh sách 4 AI bảo vệ
+        let riverFishList = []; // Đàn cá 3D bơi dưới dòng sông
+        let waterSegments = []; // Các khối mặt nước sông để tạo sóng sánh
         let escapeBeaconMesh = null;
 
-        // Cần câu trên tay (FPP) & Cần câu rơi dưới đất (World)
+        // Cần câu trên tay (FPP), Phao câu 3D & Cần câu rơi dưới đất (World)
         let fppRodGroup = null;
+        let fppRodTipLocal = new THREE.Vector3(0.38, -0.05, -1.72);
         let fppFishMesh = null;
         let droppedRodGroup = null;
 
+        // Hệ thống Câu Cá 3D thực tế
+        let bobberGroup = null;
+        let splashRingMesh = null;
+        let fishingLineMesh = null;
+        const fishing = {
+            state: 'IDLE', // 'IDLE' | 'CASTED' | 'BITING'
+            bobberPos: new THREE.Vector3(),
+            biteTimer: 0,
+            biteWindow: 0,
+            attractedFish: null
+        };
+
         // Trạng thái người chơi
         const player = {
-            pos: new THREE.Vector3(0, PLAYER_EYE_HEIGHT, 150), // Xuất phát ở miền Nam bản đồ
+            pos: new THREE.Vector3(0, PLAYER_EYE_HEIGHT, 135), // Xuất phát ở miền Nam bản đồ
             vel: new THREE.Vector3(),
             yaw: 0,
             pitch: 0,
@@ -267,6 +334,8 @@
             isClimbing: false,
             isMovingHorizontally: false,
             hasRod: true,
+            hasCaughtFish: false,     // Đã câu được cá dưới sông hay chưa
+            caughtFishColor: 0xf97316,
             inBush: false,
             isStealthHidden: false,
             noiseExposedTimer: 0,     // Thời gian bị lộ vị trí do sột soạt trong bụi cây
@@ -281,7 +350,8 @@
             citationProgress: 0,      // 0 -> 100%
             isBeingCited: false,
             rodDropPos: new THREE.Vector3(),
-            citingGuard: null
+            citingGuard: null,
+            minimapCollapsed: false
         };
 
         // Điều khiển bàn phím
@@ -296,6 +366,7 @@
         };
 
         // DOM Elements
+        const webglContainer = document.getElementById('webgl-container');
         const menuOverlay = document.getElementById('menu-overlay');
         const hud = document.getElementById('hud');
         const crosshair = document.getElementById('crosshair');
@@ -309,6 +380,7 @@
         const menuSubtitle = document.getElementById('menu-subtitle');
 
         const hudNorthDist = document.getElementById('hud-North-dist');
+        const hudFishState = document.getElementById('hud-fish-state');
         const hudRodState = document.getElementById('hud-rod-state');
         const hudStealthState = document.getElementById('hud-stealth-state');
         const hudMoveState = document.getElementById('hud-move-state');
@@ -316,21 +388,45 @@
         const citationPanel = document.getElementById('citation-panel');
         const citationPercent = document.getElementById('citation-percent');
         const citationBar = document.getElementById('citation-bar');
+        const fishingPrompt = document.getElementById('fishing-prompt');
         const toastAlert = document.getElementById('toast-alert');
         const radarCanvas = document.getElementById('radar-canvas');
+        const radarBody = document.getElementById('radar-body');
+        const btnToggleMap = document.getElementById('btn-toggle-map');
         const radarCtx = radarCanvas.getContext('2d');
 
         let toastTimeout = null;
+
+        // Hàm tính tâm dòng sông uốn lượn theo tọa độ X
+        function getRiverCenterZ(x) {
+            return Math.sin(x * 0.022) * 14 + 18;
+        }
+
+        function isPointInRiver(x, z, extraMargin = 0) {
+            const centerZ = getRiverCenterZ(x);
+            return Math.abs(z - centerZ) < (RIVER_HALF_WIDTH + extraMargin);
+        }
+
+        function isPointOnBridge(x, z) {
+            const centerZ = getRiverCenterZ(x);
+            if (Math.abs(z - centerZ) > RIVER_HALF_WIDTH + 3) return false;
+            for (const bx of BRIDGE_X_LIST) {
+                if (Math.abs(x - bx) <= BRIDGE_WIDTH / 2) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         // ============================================================================
         // 3. KHỞI TẠO THREE.JS & ÁNH SÁNG, MÔI TRƯỜNG
         // ============================================================================
         function initThreeJS() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb); // Bầu trời xanh sáng kiểu Voxel
-            scene.fog = new THREE.FogExp2(0x87ceeb, 0.0042);
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.0038);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 420);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 430);
             scene.add(camera);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -338,12 +434,12 @@
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
+            webglContainer.appendChild(renderer.domElement);
 
             clock = new THREE.Clock();
 
             // Ánh sáng môi trường & Mặt trời tạo bóng khối Voxel
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.68);
             scene.add(ambientLight);
 
             const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.85);
@@ -366,10 +462,13 @@
             // Tạo Cần Câu Góc Nhìn Thứ Nhất (FPP) gắn vào Camera
             createFPPRod();
 
+            // Tạo Phao Câu 3D & Dây Cước 3D
+            createFishingBobberAndLine();
+
             // Tạo Mô hình Cần Câu Rơi Dưới Đất (Ẩn khi đang cầm)
             createDroppedRodMesh();
 
-            // Tạo nhóm thế giới động (tòa nhà, cây thông, bảo vệ)
+            // Tạo nhóm thế giới động (sông, cá, tòa nhà, cây thông, bảo vệ)
             worldGroup = new THREE.Group();
             scene.add(worldGroup);
 
@@ -384,7 +483,6 @@
         // 4. TẠO MẶT ĐẤT VOXEL 400x400 & VÙNG TẨU THOÁT PHÍA BẮC
         // ============================================================================
         function createVoxelGround() {
-            // Tạo họa tiết ô vuông Voxel bằng Canvas 2D
             const canvas = document.createElement('canvas');
             canvas.width = 128;
             canvas.height = 128;
@@ -414,7 +512,6 @@
             const wallThickness = 4;
             const wallHeight = 14;
 
-            // Tường Nam, Đông, Tây
             const southWall = new THREE.Mesh(new THREE.BoxGeometry(WORLD_SIZE, wallHeight, wallThickness), borderMat);
             southWall.position.set(0, wallHeight / 2, HALF_WORLD);
             scene.add(southWall);
@@ -430,14 +527,12 @@
             // VÙNG TẨU THOÁT PHÍA BẮC (Z = -192 đến -200): Vạch sáng vàng khổng lồ
             const escapeGroup = new THREE.Group();
 
-            // Thảm phát sáng vàng dưới đất dọc biên giới Bắc
             const padGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 0.4, 12);
             const padMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
             const padMesh = new THREE.Mesh(padGeo, padMat);
             padMesh.position.set(0, 0.2, -194);
             escapeGroup.add(padMesh);
 
-            // Bức màn năng lượng vàng cao vút để người chơi nhìn thấy từ xa
             const beamGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 85, 2.5);
             const beamMat = new THREE.MeshBasicMaterial({
                 color: 0xfef08a,
@@ -448,7 +543,6 @@
             escapeBeaconMesh.position.set(0, 42.5, -197);
             escapeGroup.add(escapeBeaconMesh);
 
-            // Các trụ đèn Voxel vàng dọc vạch đích
             const pillarGeo = new THREE.BoxGeometry(3, 28, 3);
             const pillarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
             for (let x = -180; x <= 180; x += 45) {
@@ -461,7 +555,7 @@
         }
 
         // ============================================================================
-        // 5. CẦN CÂU GÓC NHÌN THỨ NHẤT (FPP) & CẦN CÂU RƠI DƯỚI ĐẤT
+        // 5. CẦN CÂU GÓC NHÌN THỨ NHẤT (FPP), PHAO CÂU 3D & CẦN CÂU RƠI
         // ============================================================================
         function createFPPRod() {
             fppRodGroup = new THREE.Group();
@@ -482,36 +576,98 @@
             reelMesh.position.set(0.5, -0.35, -0.45);
             fppRodGroup.add(reelMesh);
 
-            // Dây cước thả từ đầu cần
+            // Dây cước ngắn treo ở đầu cần
             const lineGeo = new THREE.BoxGeometry(0.015, 0.55, 0.015);
             const lineMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
             const lineMesh = new THREE.Mesh(lineGeo, lineMat);
             lineMesh.position.set(0.38, -0.3, -1.65);
             fppRodGroup.add(lineMesh);
 
-            // Con cá Voxel màu cam vàng đung đưa ở đầu dây
+            // Con cá Voxel đung đưa ở đầu dây (chỉ hiện sau khi đã câu được cá dưới sông)
             fppFishMesh = new THREE.Group();
-            const bodyGeo = new THREE.BoxGeometry(0.18, 0.28, 0.12);
+            const bodyGeo = new THREE.BoxGeometry(0.22, 0.34, 0.14);
             const bodyMat = new THREE.MeshLambertMaterial({ color: 0xf97316 });
+            bodyMat.name = 'fishBodyMat';
             const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.name = 'fishBody';
             fppFishMesh.add(body);
 
-            const tailGeo = new THREE.BoxGeometry(0.14, 0.16, 0.08);
+            const tailGeo = new THREE.BoxGeometry(0.16, 0.18, 0.08);
             const tailMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24 });
             const tail = new THREE.Mesh(tailGeo, tailMat);
-            tail.position.set(0, -0.2, 0);
+            tail.position.set(0, -0.24, 0);
             fppFishMesh.add(tail);
 
+            const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.16);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+            const eye = new THREE.Mesh(eyeGeo, eyeMat);
+            eye.position.set(0.04, 0.08, 0);
+            fppFishMesh.add(eye);
+
             fppFishMesh.position.set(0.38, -0.62, -1.65);
+            fppFishMesh.visible = false; // Khởi đầu chưa có cá, phải câu dưới sông
             fppRodGroup.add(fppFishMesh);
 
             camera.add(fppRodGroup);
         }
 
+        function createFishingBobberAndLine() {
+            bobberGroup = new THREE.Group();
+
+            // Phao đỏ - trắng kiểu Minecraft/Voxel
+            const topRed = new THREE.Mesh(
+                new THREE.BoxGeometry(0.45, 0.35, 0.45),
+                new THREE.MeshBasicMaterial({ color: 0xef4444 })
+            );
+            topRed.position.y = 0.25;
+            bobberGroup.add(topRed);
+
+            const bottomWhite = new THREE.Mesh(
+                new THREE.BoxGeometry(0.45, 0.3, 0.45),
+                new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+            );
+            bottomWhite.position.y = -0.05;
+            bobberGroup.add(bottomWhite);
+
+            const antenna = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 0.45, 0.1),
+                new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+            );
+            antenna.position.y = 0.6;
+            bobberGroup.add(antenna);
+
+            // Vòng sóng nước tỏa ra khi cá cắn câu
+            const ringGeo = new THREE.RingGeometry(0.4, 1.35, 16);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xe0f2fe,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.75
+            });
+            splashRingMesh = new THREE.Mesh(ringGeo, ringMat);
+            splashRingMesh.rotation.x = -Math.PI / 2;
+            splashRingMesh.position.y = 0.05;
+            splashRingMesh.visible = false;
+            bobberGroup.add(splashRingMesh);
+
+            bobberGroup.visible = false;
+            scene.add(bobberGroup);
+
+            // Dây cước 3D nối từ đầu cần câu tới phao
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(),
+                new THREE.Vector3()
+            ]);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xf8fafc });
+            fishingLineMesh = new THREE.Line(lineGeo, lineMat);
+            fishingLineMesh.frustumCulled = false;
+            fishingLineMesh.visible = false;
+            scene.add(fishingLineMesh);
+        }
+
         function createDroppedRodMesh() {
             droppedRodGroup = new THREE.Group();
 
-            // Vòng hào quang xanh ngọc dưới đất để dễ tìm
             const ringGeo = new THREE.CylinderGeometry(1.6, 1.6, 0.15, 16);
             const ringMat = new THREE.MeshBasicMaterial({
                 color: 0x22d3ee,
@@ -522,7 +678,6 @@
             ringMesh.position.y = 0.08;
             droppedRodGroup.add(ringMesh);
 
-            // Cột sáng báo hiệu vị trí cần câu bị rơi
             const beaconGeo = new THREE.CylinderGeometry(0.25, 0.25, 18, 8);
             const beaconMat = new THREE.MeshBasicMaterial({
                 color: 0x38bdf8,
@@ -533,7 +688,6 @@
             beaconMesh.position.y = 9;
             droppedRodGroup.add(beaconMesh);
 
-            // Mô hình cần câu + con cá xoay lơ lửng
             const itemHolder = new THREE.Group();
             itemHolder.name = 'floatingRod';
 
@@ -559,10 +713,127 @@
         }
 
         // ============================================================================
-        // 6. SINH BẢN ĐỒ NGẪU NHIÊN (TÒA NHÀ XÁM, CÂY THÔNG NÚP LÙM, 4 BẢO VỆ)
+        // 6. SINH BẢN ĐỒ NGẪU NHIÊN (DÒNG SÔNG 3D, CÁ BƠI, CẦU GỖ, TÒA NHÀ, CÂY THÔNG)
         // ============================================================================
+        function createRiverAndBridgesAndFish() {
+            waterSegments = [];
+            riverFishList = [];
+
+            const sandMat = new THREE.MeshLambertMaterial({ color: 0xeab308 });
+            const waterMat = new THREE.MeshLambertMaterial({
+                color: 0x0284c7,
+                transparent: true,
+                opacity: 0.86
+            });
+            const rockMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+
+            // 1. Tạo các lát cắt dòng sông Voxel uốn lượn từ Tây (-196) sang Đông (+196)
+            const segWidth = 8;
+            for (let x = -196; x <= 196; x += segWidth) {
+                const cz = getRiverCenterZ(x);
+
+                // Bờ cát hai bên sông
+                const sandMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(segWidth + 0.6, 0.22, RIVER_HALF_WIDTH * 2 + 6),
+                    sandMat
+                );
+                sandMesh.position.set(x, 0.06, cz);
+                sandMesh.receiveShadow = true;
+                worldGroup.add(sandMesh);
+
+                // Khối nước sông xanh biếc
+                const waterMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(segWidth + 0.3, 0.45, RIVER_HALF_WIDTH * 2),
+                    waterMat
+                );
+                waterMesh.position.set(x, 0.18, cz);
+                worldGroup.add(waterMesh);
+                waterSegments.push({ mesh: waterMesh, baseX: x });
+
+                // Đá tảng Voxel trang trí dọc bờ sông
+                if (Math.random() < 0.45) {
+                    const side = Math.random() < 0.5 ? -1 : 1;
+                    const rock = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.8, 1.2, 1.8),
+                        rockMat
+                    );
+                    rock.position.set(
+                        x + (Math.random() - 0.5) * 3,
+                        0.6,
+                        cz + side * (RIVER_HALF_WIDTH + 1.8)
+                    );
+                    worldGroup.add(rock);
+                }
+            }
+
+            // 2. Tạo 3 cây Cầu Gỗ Voxel bắc qua sông
+            const woodDeckMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+            const woodPostMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
+
+            for (const bx of BRIDGE_X_LIST) {
+                const cz = getRiverCenterZ(bx);
+                const bridgeLen = RIVER_HALF_WIDTH * 2 + 8;
+
+                // Mặt cầu gỗ
+                const deck = new THREE.Mesh(
+                    new THREE.BoxGeometry(BRIDGE_WIDTH, 0.55, bridgeLen),
+                    woodDeckMat
+                );
+                deck.position.set(bx, 0.5, cz);
+                deck.receiveShadow = true;
+                worldGroup.add(deck);
+
+                // Lan can gỗ 2 bên cầu
+                for (let zOff = -bridgeLen / 2 + 2; zOff <= bridgeLen / 2 - 2; zOff += 5) {
+                    const postL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5), woodPostMat);
+                    postL.position.set(bx - BRIDGE_WIDTH / 2 + 0.3, 1.5, cz + zOff);
+                    worldGroup.add(postL);
+
+                    const postR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5), woodPostMat);
+                    postR.position.set(bx + BRIDGE_WIDTH / 2 - 0.3, 1.5, cz + zOff);
+                    worldGroup.add(postR);
+                }
+            }
+
+            // 3. Tạo 30 chú Cá 3D Voxel nhiều màu sắc bơi lội dưới dòng sông
+            const fishColors = [0xf97316, 0xfacc15, 0xf43f5e, 0x38bdf8, 0xa855f7];
+            for (let i = 0; i < 30; i++) {
+                const fx = (Math.random() - 0.5) * 350;
+                const fz = getRiverCenterZ(fx) + (Math.random() - 0.5) * (RIVER_HALF_WIDTH * 1.4);
+                const color = fishColors[i % fishColors.length];
+
+                const fishGroup = new THREE.Group();
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.55, 0.35, 1.1),
+                    new THREE.MeshLambertMaterial({ color })
+                );
+                fishGroup.add(body);
+
+                const tailPivot = new THREE.Group();
+                tailPivot.position.set(0, 0, -0.55);
+                const tail = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.18, 0.32, 0.45),
+                    new THREE.MeshLambertMaterial({ color: 0xfef08a })
+                );
+                tail.position.z = -0.2;
+                tailPivot.add(tail);
+                fishGroup.add(tailPivot);
+
+                fishGroup.position.set(fx, 0.32, fz);
+                worldGroup.add(fishGroup);
+
+                riverFishList.push({
+                    mesh: fishGroup,
+                    tailPivot,
+                    color,
+                    speed: 3.2 + Math.random() * 2.5,
+                    dirX: Math.random() < 0.5 ? 1 : -1,
+                    swimPhase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
         function generateProceduralWorld() {
-            // Xóa dữ liệu cũ
             while (worldGroup.children.length > 0) {
                 worldGroup.remove(worldGroup.children[0]);
             }
@@ -570,23 +841,27 @@
             pineTrees = [];
             guards = [];
 
-            // 1. Tạo 55 Tòa nhà xám Voxel ngẫu nhiên làm chướng ngại vật & leo trèo Parkour
+            // Sinh dòng sông 3D, cầu gỗ và đàn cá bơi dưới sông
+            createRiverAndBridgesAndFish();
+
+            // 1. Tạo 52 Tòa nhà xám Voxel ngẫu nhiên (không đè lên dòng sông & cầu gỗ)
             const buildingColors = [0x64748b, 0x475569, 0x52525b, 0x71717a];
-            const windowMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
 
             for (let i = 0; i < 55; i++) {
                 const w = 10 + Math.floor(Math.random() * 14);
                 const d = 10 + Math.floor(Math.random() * 14);
-                const h = 8 + Math.floor(Math.random() * 20); // Độ cao từ 8 đến 28m
+                const h = 8 + Math.floor(Math.random() * 20);
 
-                // Tránh vùng xuất phát của người chơi (0, 150) và vùng đích (-192)
                 let x = (Math.random() - 0.5) * 340;
                 let z = (Math.random() - 0.5) * 330;
 
-                if (Math.hypot(x - 0, z - 150) < 24) continue;
+                // Tránh vị trí xuất phát của người chơi và vùng đích Bắc
+                if (Math.hypot(x - 0, z - 135) < 24) continue;
                 if (z < -175) continue;
 
-                // Kiểm tra tránh chồng lấn quá sát tòa nhà khác
+                // Tránh xây tòa nhà đè lên dòng sông
+                if (isPointInRiver(x, z, Math.max(w, d) / 2 + 5)) continue;
+
                 let overlap = false;
                 for (const b of buildings) {
                     if (Math.abs(x - b.x) < (w + b.w) / 2 + 4 && Math.abs(z - b.z) < (d + b.d) / 2 + 4) {
@@ -605,7 +880,6 @@
                 bMesh.receiveShadow = true;
                 worldGroup.add(bMesh);
 
-                // Viền mái nhà Voxel để dễ nhận diện khi leo Parkour
                 const roofGeo = new THREE.BoxGeometry(w + 0.6, 0.8, d + 0.6);
                 const roofMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
                 const roofMesh = new THREE.Mesh(roofGeo, roofMat);
@@ -631,8 +905,8 @@
                 let z = (Math.random() - 0.5) * 350;
 
                 if (z < -180) continue;
+                if (isPointInRiver(x, z, 5)) continue;
 
-                // Không đặt cây thông xuyên vào trong tòa nhà
                 let insideBuilding = false;
                 for (const b of buildings) {
                     if (x > b.minX - 3.5 && x < b.maxX + 3.5 && z > b.minZ - 3.5 && z < b.maxZ + 3.5) {
@@ -645,12 +919,10 @@
                 const treeGroup = new THREE.Group();
                 treeGroup.position.set(x, 0, z);
 
-                // Thân gỗ
                 const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.4, 4.0, 1.4), trunkMat);
                 trunk.position.y = 2.0;
                 treeGroup.add(trunk);
 
-                // 3 tầng lá thông dày rậm rạp sát mặt đất để người chơi chui vào núp
                 const layer1 = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.2, 6.2), leafMat1);
                 layer1.position.y = 2.6;
                 layer1.castShadow = true;
@@ -670,26 +942,400 @@
 
                 pineTrees.push({
                     x, z,
-                    radius: 3.4 // Bán kính núp lùm trong tán cây thông
+                    radius: 3.4
                 });
             }
 
-            // 3. Khởi tạo 4 AI Bảo vệ thông minh
+            // 3. Khởi tạo 4 AI Bảo vệ thông minh (2 bảo vệ bờ Nam, 2 bảo vệ bờ Bắc)
             const spawnCoords = [
-                { x: -55, z: 65 },
-                { x: 55, z: 55 },
+                { x: -55, z: 75 },
+                { x: 55, z: 70 },
                 { x: -45, z: -45 },
-                { x: 50, z: -60 }
+                { x: 50, z: -55 }
             ];
 
             for (let i = 0; i < GUARD_COUNT; i++) {
-                let gx = spawnCoords[i].x + (Math.random() - 0.5) * 25;
-                let gz = spawnCoords[i].z + (Math.random() - 0.5) * 25;
-                // Đảm bảo bảo vệ không sinh ra bên trong tòa nhà
+                let gx = spawnCoords[i].x + (Math.random() - 0.5) * 20;
+                let gz = spawnCoords[i].z + (Math.random() - 0.5) * 20;
                 const safePos = findSafeGroundPosition(gx, gz);
                 const guard = createGuardEntity(safePos.x, safePos.z, i);
                 guards.push(guard);
                 worldGroup.add(guard.mesh);
+            }
+        }
+
+        function findSafeGroundPosition(x, z) {
+            let testX = x;
+            let testZ = z;
+            for (let attempt = 0; attempt < 25; attempt++) {
+                let blocked = isPointInRiver(testX, testZ, 2) && !isPointOnBridge(testX, testZ);
+                if (!blocked) {
+                    for (const b of buildings) {
+                        if (testX > b.minX - 2 && testX < b.maxX + 2 && testZ > b.minZ - 2 && testZ < b.maxZ + 2) {
+                            blocked = true;
+                            break;
+                        }
+                    }
+                }
+                if (!blocked) return { x: testX, z: testZ };
+                testX += (Math.random() - 0.5) * 22;
+                testZ += (Math.random() - 0.5) * 22;
+            }
+            return { x: 0, z: 85 };
+        }
+
+        // ============================================================================
+        // 7. CƠ CHẾ CÂU CÁ 3D THẬT DƯỚI DÒNG SÔNG
+        // ============================================================================
+        function isPlayerNearRiverForFishing() {
+            const distToRiverCenter = Math.abs(player.pos.z - getRiverCenterZ(player.pos.x));
+            return distToRiverCenter <= RIVER_HALF_WIDTH + 22;
+        }
+
+        function handleFishingAction() {
+            if (!gameState.isRunning || gameState.isGameOver) return;
+
+            if (!player.hasRod) {
+                showToast('⚠️ Bạn đang bị rơi Cần Câu! Hãy lách qua bảo vệ để nhặt lại cần câu trước!', 'danger');
+                return;
+            }
+
+            // Nếu đang quăng câu và cá đang đớp mồi -> Giật cá lên cần!
+            if (fishing.state === 'BITING') {
+                fishing.state = 'IDLE';
+                bobberGroup.visible = false;
+                fishingLineMesh.visible = false;
+                splashRingMesh.visible = false;
+
+                player.hasCaughtFish = true;
+                fppFishMesh.visible = true;
+
+                // Đổi màu cá trên đầu cần theo con cá vừa câu được
+                if (fishing.attractedFish) {
+                    const bodyMesh = fppFishMesh.getObjectByName('fishBody');
+                    if (bodyMesh) bodyMesh.material.color.setHex(fishing.attractedFish.color);
+                }
+
+                showToast('🐟 ĐÃ CÂU ĐƯỢC CÁ QUÝ! Mau chạy về Vạch Sáng Vàng ở Phía Bắc để tẩu thoát!', 'success');
+                return;
+            }
+
+            // Nếu đang quăng phao nhưng cá chưa cắn -> Thu hồi phao
+            if (fishing.state === 'CASTED') {
+                cancelFishingCast();
+                showToast('🎣 Đã thu cần câu lại.', 'info');
+                return;
+            }
+
+            // Nếu đang IDLE -> Kiểm tra xem có đứng gần sông để quăng phao không
+            const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
+            let castWaterPos = null;
+
+            for (let dist = 5; dist <= 26; dist += 1.5) {
+                const tx = player.pos.x + forward.x * dist;
+                const tz = player.pos.z + forward.z * dist;
+                if (isPointInRiver(tx, tz, -1.2)) {
+                    castWaterPos = new THREE.Vector3(tx, 0.35, tz);
+                    break;
+                }
+            }
+
+            // Nếu người chơi đứng sát bờ sông nhưng nhìn hơi lệch, tự động quăng vào tâm sông trước mặt
+            if (!castWaterPos && isPlayerNearRiverForFishing()) {
+                const tx = Math.max(-185, Math.min(185, player.pos.x + forward.x * 8));
+                const tz = getRiverCenterZ(tx) + (Math.random() - 0.5) * 6;
+                castWaterPos = new THREE.Vector3(tx, 0.35, tz);
+            }
+
+            if (!castWaterPos) {
+                showToast('🌊 Hãy tiến lại gần Dòng Sông ở giữa bản đồ để quăng câu!', 'info');
+                return;
+            }
+
+            // Quăng phao xuống sông!
+            fishing.state = 'CASTED';
+            fishing.bobberPos.copy(castWaterPos);
+            fishing.biteTimer = 2.0 + Math.random() * 2.2; // Đợi 2 - 4.2 giây cá sẽ bơi tới cắn câu
+            fishing.biteWindow = 0;
+
+            // Chọn con cá gần phao nhất để bơi hút về phía phao
+            let closestFish = null;
+            let minDist = Infinity;
+            for (const f of riverFishList) {
+                const d = Math.hypot(f.mesh.position.x - castWaterPos.x, f.mesh.position.z - castWaterPos.z);
+                if (d < minDist) {
+                    minDist = d;
+                    closestFish = f;
+                }
+            }
+            fishing.attractedFish = closestFish;
+
+            bobberGroup.position.copy(fishing.bobberPos);
+            bobberGroup.visible = true;
+            splashRingMesh.visible = false;
+            fishingLineMesh.visible = true;
+
+            showToast('🎣 Đã quăng phao xuống sông! Chờ cá bơi tới đớp mồi...', 'info');
+        }
+
+        function cancelFishingCast() {
+            fishing.state = 'IDLE';
+            fishing.attractedFish = null;
+            bobberGroup.visible = false;
+            splashRingMesh.visible = false;
+            fishingLineMesh.visible = false;
+        }
+
+        function updateRiverAndFishing(dt) {
+            const elapsed = clock.getElapsedTime();
+
+            // 1. Hiệu ứng mặt nước sông nhấp nhô
+            for (const seg of waterSegments) {
+                seg.mesh.position.y = 0.16 + Math.sin(elapsed * 2.4 + seg.baseX * 0.08) * 0.04;
+            }
+
+            // 2. Cập nhật 30 chú cá 3D bơi lội dưới dòng sông
+            for (const fish of riverFishList) {
+                fish.swimPhase += dt * 12;
+                fish.tailPivot.rotation.y = Math.sin(fish.swimPhase) * 0.45;
+
+                // Nếu con cá này đang bị thu hút bởi phao câu của người chơi
+                if ((fishing.state === 'CASTED' || fishing.state === 'BITING') && fishing.attractedFish === fish) {
+                    const dx = fishing.bobberPos.x - fish.mesh.position.x;
+                    const dz = fishing.bobberPos.z - fish.mesh.position.z;
+                    const dist = Math.hypot(dx, dz);
+                    if (dist > 0.7) {
+                        const moveStep = Math.min(dist, 9.5 * dt);
+                        fish.mesh.position.x += (dx / dist) * moveStep;
+                        fish.mesh.position.z += (dz / dist) * moveStep;
+                    }
+                    fish.mesh.rotation.y = Math.atan2(dx, dz);
+                    continue;
+                }
+
+                // Cá bơi tự nhiên dọc theo lòng sông
+                fish.mesh.position.x += fish.dirX * fish.speed * dt;
+                if (fish.mesh.position.x > 185) fish.dirX = -1;
+                if (fish.mesh.position.x < -185) fish.dirX = 1;
+
+                const targetRiverZ = getRiverCenterZ(fish.mesh.position.x) + Math.sin(fish.swimPhase * 0.15) * (RIVER_HALF_WIDTH * 0.65);
+                fish.mesh.position.z += (targetRiverZ - fish.mesh.position.z) * 2.0 * dt;
+                fish.mesh.rotation.y = fish.dirX > 0 ? Math.PI / 2 : -Math.PI / 2;
+            }
+
+            // 3. Cập nhật dây câu 3D & trạng thái phao câu
+            if (fishing.state !== 'IDLE') {
+                // Nếu người chơi bỏ chạy quá xa khỏi phao (> 34m) hoặc làm rơi cần câu -> Tự thu phao
+                const distPlayerToBobber = Math.hypot(
+                    player.pos.x - fishing.bobberPos.x,
+                    player.pos.z - fishing.bobberPos.z
+                );
+                if (!player.hasRod || distPlayerToBobber > 34) {
+                    cancelFishingCast();
+                    return;
+                }
+
+                // Cập nhật tọa độ 2 đầu dây cước nối từ đầu cần câu FPP tới phao dưới sông
+                const rodTipWorld = fppRodTipLocal.clone();
+                fppRodGroup.localToWorld(rodTipWorld);
+
+                const positions = fishingLineMesh.geometry.attributes.position.array;
+                positions[0] = rodTipWorld.x;
+                positions[1] = rodTipWorld.y;
+                positions[2] = rodTipWorld.z;
+                positions[3] = bobberGroup.position.x;
+                positions[4] = bobberGroup.position.y + 0.45;
+                positions[5] = bobberGroup.position.z;
+                fishingLineMesh.geometry.attributes.position.needsUpdate = true;
+
+                if (fishing.state === 'CASTED') {
+                    bobberGroup.position.y = 0.35 + Math.sin(elapsed * 4) * 0.06;
+                    fishing.biteTimer -= dt;
+
+                    if (fishing.biteTimer <= 0) {
+                        fishing.state = 'BITING';
+                        fishing.biteWindow = 3.8; // Người chơi có 3.8 giây để giật cá
+                        splashRingMesh.visible = true;
+                        showToast('💦 CÁ ĐỚP MỒI! Nhấn [Click Trái] hoặc [Phím F] ngay để giật cá lên!', 'success');
+                    }
+                } else if (fishing.state === 'BITING') {
+                    // Phao chìm giật mạnh liên tục + sóng nước lan tỏa
+                    bobberGroup.position.y = 0.12 + Math.sin(elapsed * 24) * 0.22;
+                    const pulseScale = 0.8 + ((elapsed * 3.2) % 1.4);
+                    splashRingMesh.scale.set(pulseScale, pulseScale, 1);
+
+                    fishing.biteWindow -= dt;
+                    if (fishing.biteWindow <= 0) {
+                        cancelFishingCast();
+                        showToast('🐟 Cá đã rỉa mất mồi! Hãy nhấn Click Trái / F để quăng câu lại!', 'danger');
+                    }
+                }
+            }
+        }
+
+        // ============================================================================
+        // 9. CẬP NHẬT ĐIỀU KHIỂN NGƯỜI CHƠI, PARKOUR & NÚP LÙM CÂY THÔNG
+        // ============================================================================
+        function updatePlayer(dt) {
+            const feetY = player.pos.y - PLAYER_EYE_HEIGHT;
+
+            const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
+            const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
+
+            const moveDir = new THREE.Vector3();
+            if (keys.KeyW) moveDir.add(forward);
+            if (keys.KeyS) moveDir.sub(forward);
+            if (keys.KeyD) moveDir.add(right);
+            if (keys.KeyA) moveDir.sub(right);
+
+            player.isMovingHorizontally = moveDir.lengthSq() > 0.001;
+            if (player.isMovingHorizontally) moveDir.normalize();
+
+            // Kiểm tra lội nước dưới sông (nếu không đứng trên cầu gỗ)
+            player.isInWater = isPointInRiverWater(player.pos.x, player.pos.z, -0.5) && !isPointOnWoodenBridge(player.pos.x, player.pos.z) && feetY < 0.8;
+
+            player.isSprinting = (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally;
+            let currentSpeed = player.isSprinting ? SPRINT_SPEED : WALK_SPEED;
+            if (player.isInWater) currentSpeed *= 0.78; // Lội sông chậm hơn một chút so với chạy trên cầu gỗ
+
+            const desiredX = player.pos.x + moveDir.x * currentSpeed * dt;
+            const desiredZ = player.pos.z + moveDir.z * currentSpeed * dt;
+
+            const colResult = checkAndResolvePlayerBuildingCollision(desiredX, desiredZ, feetY);
+            player.pos.x = colResult.x;
+            player.pos.z = colResult.z;
+
+            // Cơ chế PARKOUR TỰ ĐỘNG BÁM TƯỜNG LÊN MÁI NHÀ khi đè W tiến vào tòa nhà
+            if (colResult.hitWallForClimb && keys.KeyW) {
+                player.isClimbing = true;
+                player.vel.y = CLIMB_SPEED;
+                player.onGround = false;
+            } else {
+                if (player.isClimbing && keys.KeyW) {
+                    player.pos.x += forward.x * 0.35;
+                    player.pos.z += forward.z * 0.35;
+                }
+                player.isClimbing = false;
+            }
+
+            if (keys.Space && player.onGround && !player.isClimbing) {
+                player.vel.y = JUMP_FORCE;
+                player.onGround = false;
+            }
+
+            if (!player.isClimbing) {
+                player.vel.y -= GRAVITY * dt;
+            }
+
+            player.pos.y += player.vel.y * dt;
+
+            // Nếu lội dưới lòng sông thì mặt đất thấp hơn một chút (-0.35m)
+            const riverDepthOffset = player.isInWater ? -0.35 : 0;
+            const supportY = colResult.groundHeight + riverDepthOffset + PLAYER_EYE_HEIGHT;
+            if (player.pos.y <= supportY) {
+                player.pos.y = supportY;
+                player.vel.y = 0;
+                player.onGround = true;
+            } else {
+                player.onGround = false;
+            }
+
+            camera.position.copy(player.pos);
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = player.yaw;
+            camera.rotation.x = player.pitch;
+
+            // Hiệu ứng đung đưa Cần Câu & Con Cá góc nhìn thứ nhất
+            if (fppRodGroup) {
+                fppRodGroup.visible = player.hasRod;
+                fppRodGroup.rotation.x += (0 - fppRodGroup.rotation.x) * 8 * dt;
+                if (player.hasRod) {
+                    const time = clock.getElapsedTime();
+                    const bobFreq = player.isSprinting ? 14 : (player.isMovingHorizontally ? 8 : 2);
+                    const bobAmp = player.isMovingHorizontally ? 0.035 : 0.008;
+                    fppRodGroup.position.y = Math.sin(time * bobFreq) * bobAmp;
+                    fppRodGroup.position.x = Math.cos(time * bobFreq * 0.5) * bobAmp;
+                    if (fppFishMesh && fppFishMesh.visible) {
+                        fppFishMesh.rotation.z = Math.sin(time * 6.0) * 0.32;
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // HỆ THỐNG NÚP LÙM CÂY THÔNG CHÂN THỰC
+            // ------------------------------------------------------------------------
+            if (player.noiseExposedTimer > 0) {
+                player.noiseExposedTimer = Math.max(0, player.noiseExposedTimer - dt);
+            }
+            if (player.noiseCheckCooldown > 0) {
+                player.noiseCheckCooldown = Math.max(0, player.noiseCheckCooldown - dt);
+            }
+
+            let insidePine = false;
+            if (feetY < 3.5) {
+                for (const tree of pineTrees) {
+                    const distSq = (player.pos.x - tree.x) ** 2 + (player.pos.z - tree.z) ** 2;
+                    if (distSq <= tree.radius * tree.radius) {
+                        insidePine = true;
+                        break;
+                    }
+                }
+            }
+            player.inBush = insidePine;
+
+            if (player.inBush) {
+                if (player.isMovingHorizontally && player.noiseCheckCooldown <= 0) {
+                    player.noiseCheckCooldown = 0.45;
+                    const noiseChance = player.isSprinting ? 0.65 : 0.30;
+                    if (Math.random() < noiseChance) {
+                        player.noiseExposedTimer = 3.5;
+                        showToast('🔊 SỘT SOẠT! Bạn di chuyển trong cây thông và làm lộ vị trí (3.5s)!', 'danger');
+                    }
+                }
+                player.isStealthHidden = !player.isMovingHorizontally && player.noiseExposedTimer <= 0;
+            } else {
+                player.isStealthHidden = false;
+            }
+
+            // ------------------------------------------------------------------------
+            // KIỂM TRA NHẶT LẠI CẦN CÂU BỊ RƠI
+            // ------------------------------------------------------------------------
+            if (player.rodPickupCooldown > 0) {
+                player.rodPickupCooldown -= dt;
+            }
+
+            if (!player.hasRod && gameState.isBeingCited && player.rodPickupCooldown <= 0) {
+                const distToRod = Math.hypot(
+                    player.pos.x - gameState.rodDropPos.x,
+                    player.pos.z - gameState.rodDropPos.z
+                );
+                if (distToRod < 2.8 && feetY < 3.5) {
+                    player.hasRod = true;
+                    gameState.isBeingCited = false;
+                    droppedRodGroup.visible = false;
+                    citationPanel.classList.add('hidden');
+
+                    for (const g of guards) {
+                        if (g.state === 'CAMP_ROD') g.state = 'CHASE';
+                    }
+
+                    showToast('✅ ĐÃ NHẶT LẠI CẦN CÂU! Tiếp tục câu cá hoặc chạy về Vạch Vàng phía Bắc!', 'success');
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // KIỂM TRA ĐIỀU KIỆN THẮNG: MANG CẦN CÂU + ĐÃ CÂU ĐƯỢC CÁ CHẠM VẠCH VÀNG
+            // ------------------------------------------------------------------------
+            if (player.pos.z <= NORTH_ESCAPE_Z) {
+                if (!player.hasRod) {
+                    showToast('⚠️ Bạn chưa có Cần Câu! Hãy quay lại nhặt cần câu trước khi thoát!', 'danger');
+                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
+                } else if (fishing.caughtCount < TARGET_FISH_COUNT) {
+                    showToast('🎣 Bạn chưa câu con cá nào! Hãy ra Dòng Sông 3D giữa bản đồ nhấn Click / F để câu ít nhất 1 con cá!', 'info');
+                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
+                } else {
+                    triggerGameOver(true);
+                }
             }
         }
 
@@ -856,6 +1502,21 @@
             let hitWallForClimb = false;
             let highestSupportRoof = 0;
 
+            // Nếu đứng trên cầu gỗ thì mặt đất hỗ trợ cao hơn mặt nước một chút
+            if (isPointOnBridge(resolvedX, resolvedZ) && currentFeetY <= 1.2) {
+                highestSupportRoof = Math.max(highestSupportRoof, 0.55);
+            }
+
+            // Chặn người chơi không lội thẳng xuống giữa dòng sông sâu (trừ khi đi trên cầu gỗ)
+            if (isPointInRiver(resolvedX, resolvedZ, -0.5) && !isPointOnBridge(resolvedX, resolvedZ) && currentFeetY < 1.2) {
+                const centerZ = getRiverCenterZ(resolvedX);
+                if (player.pos.z >= centerZ) {
+                    resolvedZ = Math.max(resolvedZ, centerZ + RIVER_HALF_WIDTH - 0.5);
+                } else {
+                    resolvedZ = Math.min(resolvedZ, centerZ - RIVER_HALF_WIDTH + 0.5);
+                }
+            }
+
             for (const b of buildings) {
                 const expandedMinX = b.minX - PLAYER_RADIUS;
                 const expandedMaxX = b.maxX + PLAYER_RADIUS;
@@ -865,14 +1526,11 @@
                 if (resolvedX > expandedMinX && resolvedX < expandedMaxX &&
                     resolvedZ > expandedMinZ && resolvedZ < expandedMaxZ) {
 
-                    // Nếu chân người chơi đang ở trên hoặc rất gần mặt sân thượng của tòa nhà
                     if (currentFeetY >= b.height - 0.65) {
                         highestSupportRoof = Math.max(highestSupportRoof, b.height);
                     } else {
-                        // Va vào thành tường của tòa nhà
                         hitWallForClimb = true;
 
-                        // Đẩy người chơi ra theo cạnh gần nhất (AABB resolution)
                         const overlapLeft = resolvedX - expandedMinX;
                         const overlapRight = expandedMaxX - resolvedX;
                         const overlapTop = resolvedZ - expandedMinZ;
@@ -887,7 +1545,6 @@
                 }
             }
 
-            // Giới hạn biên bản đồ 400x400
             resolvedX = Math.max(-HALF_WORLD + 2, Math.min(HALF_WORLD - 2, resolvedX));
             resolvedZ = Math.max(-HALF_WORLD + 2, Math.min(HALF_WORLD - 2, resolvedZ));
 
@@ -899,9 +1556,12 @@
             };
         }
 
-        // Kiểm tra điểm (x, z) có va chạm tòa nhà không (Dùng cho AI chống kẹt tường)
+        // Kiểm tra điểm (x, z) có va chạm tòa nhà hoặc lòng sông không (Dùng cho AI chống kẹt tường)
         function isPointBlockedByBuilding(x, z, margin = 1.4) {
             if (x < -HALF_WORLD + 3 || x > HALF_WORLD - 3 || z < -HALF_WORLD + 3 || z > HALF_WORLD - 3) {
+                return true;
+            }
+            if (isPointInRiver(x, z, -0.5) && !isPointOnBridge(x, z)) {
                 return true;
             }
             for (const b of buildings) {
@@ -919,7 +1579,6 @@
         function updatePlayer(dt) {
             const feetY = player.pos.y - PLAYER_EYE_HEIGHT;
 
-            // Hướng nhìn theo góc Yaw của Camera
             const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
             const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
 
@@ -932,25 +1591,21 @@
             player.isMovingHorizontally = moveDir.lengthSq() > 0.001;
             if (player.isMovingHorizontally) moveDir.normalize();
 
-            // Chạy nước rút giữ Shift (tốc độ vượt trội AI)
             player.isSprinting = (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally;
             const currentSpeed = player.isSprinting ? SPRINT_SPEED : WALK_SPEED;
 
             const desiredX = player.pos.x + moveDir.x * currentSpeed * dt;
             const desiredZ = player.pos.z + moveDir.z * currentSpeed * dt;
 
-            // Giải quyết va chạm tòa nhà & kiểm tra Parkour leo tường
             const colResult = checkAndResolvePlayerBuildingCollision(desiredX, desiredZ, feetY);
             player.pos.x = colResult.x;
             player.pos.z = colResult.z;
 
-            // Cơ chế PARKOUR TỰ ĐỘNG BÁM TƯỜNG LÊN MÁI NHÀ khi đè W tiến vào tòa nhà
             if (colResult.hitWallForClimb && keys.KeyW) {
                 player.isClimbing = true;
                 player.vel.y = CLIMB_SPEED;
                 player.onGround = false;
             } else {
-                // Nếu vừa leo tới mép sân thượng, đẩy nhẹ người chơi lên hẳn mái nhà
                 if (player.isClimbing && keys.KeyW) {
                     player.pos.x += forward.x * 0.35;
                     player.pos.z += forward.z * 0.35;
@@ -958,20 +1613,17 @@
                 player.isClimbing = false;
             }
 
-            // Nhảy bằng phím Space
             if (keys.Space && player.onGround && !player.isClimbing) {
                 player.vel.y = JUMP_FORCE;
                 player.onGround = false;
             }
 
-            // Áp dụng trọng lực nếu không đang bám tường
             if (!player.isClimbing) {
                 player.vel.y -= GRAVITY * dt;
             }
 
             player.pos.y += player.vel.y * dt;
 
-            // Kiểm tra chạm mặt đất hoặc chạm nóc tòa nhà
             const supportY = colResult.groundHeight + PLAYER_EYE_HEIGHT;
             if (player.pos.y <= supportY) {
                 player.pos.y = supportY;
@@ -981,22 +1633,23 @@
                 player.onGround = false;
             }
 
-            // Đồng bộ vị trí & góc xoay Camera
             camera.position.copy(player.pos);
             camera.rotation.order = 'YXZ';
             camera.rotation.y = player.yaw;
             camera.rotation.x = player.pitch;
 
-            // Hiệu ứng đung đưa Cần Câu & Con Cá góc nhìn thứ nhất
             if (fppRodGroup) {
                 fppRodGroup.visible = player.hasRod;
+                fppFishMesh.visible = player.hasRod && player.hasCaughtFish;
                 if (player.hasRod) {
                     const time = clock.getElapsedTime();
                     const bobFreq = player.isSprinting ? 14 : (player.isMovingHorizontally ? 8 : 2);
                     const bobAmp = player.isMovingHorizontally ? 0.035 : 0.008;
                     fppRodGroup.position.y = Math.sin(time * bobFreq) * bobAmp;
                     fppRodGroup.position.x = Math.cos(time * bobFreq * 0.5) * bobAmp;
-                    fppFishMesh.rotation.z = Math.sin(time * 5.5) * 0.28;
+                    if (player.hasCaughtFish) {
+                        fppFishMesh.rotation.z = Math.sin(time * 5.5) * 0.28;
+                    }
                 }
             }
 
@@ -1010,7 +1663,6 @@
                 player.noiseCheckCooldown = Math.max(0, player.noiseCheckCooldown - dt);
             }
 
-            // Kiểm tra người chơi có đang đứng trong tán cây thông nào không (ở dưới mặt đất)
             let insidePine = false;
             if (feetY < 3.5) {
                 for (const tree of pineTrees) {
@@ -1024,17 +1676,14 @@
             player.inBush = insidePine;
 
             if (player.inBush) {
-                // Nếu di chuyển trong bụi cây: có tỉ lệ phát ra tiếng động sột soạt làm lộ vị trí
                 if (player.isMovingHorizontally && player.noiseCheckCooldown <= 0) {
-                    player.noiseCheckCooldown = 0.45; // Kiểm tra mỗi 0.45s khi đang nhúc nhích
+                    player.noiseCheckCooldown = 0.45;
                     const noiseChance = player.isSprinting ? 0.65 : 0.30;
                     if (Math.random() < noiseChance) {
-                        player.noiseExposedTimer = 3.5; // Lộ vị trí trong 3.5 giây!
+                        player.noiseExposedTimer = 3.5;
                         showToast('🔊 SỘT SOẠT! Bạn di chuyển trong cây thông và làm lộ vị trí (3.5s)!', 'danger');
                     }
                 }
-
-                // Tàng hình hoàn toàn nếu đứng yên và không đang bị lộ tiếng động
                 player.isStealthHidden = !player.isMovingHorizontally && player.noiseExposedTimer <= 0;
             } else {
                 player.isStealthHidden = false;
@@ -1053,26 +1702,28 @@
                     player.pos.z - gameState.rodDropPos.z
                 );
                 if (distToRod < 2.8 && feetY < 3.5) {
-                    // Nhặt lại cần câu thành công!
                     player.hasRod = true;
                     gameState.isBeingCited = false;
                     droppedRodGroup.visible = false;
                     citationPanel.classList.add('hidden');
 
-                    // Tất cả bảo vệ quay lại trạng thái truy đuổi / tuần tra
                     for (const g of guards) {
                         if (g.state === 'CAMP_ROD') g.state = 'CHASE';
                     }
 
-                    showToast('✅ ĐÃ NHẶT LẠI CẦN CÂU! Chạy ngay về Vạch Sáng Vàng phía Bắc!', 'success');
+                    showToast('✅ ĐÃ NHẶT LẠI CẦN CÂU! Hãy câu cá hoặc chạy ngay về Vạch Sáng Vàng phía Bắc!', 'success');
                 }
             }
 
             // ------------------------------------------------------------------------
-            // KIỂM TRA ĐIỀU KIỆN THẮNG: MANG CẦN CÂU CHẠM VẠCH VÀNG PHÍA BẮC
+            // KIỂM TRA ĐIỀU KIỆN THẮNG: MANG CẦN CÂU + ĐÃ CÂU CÁ CHẠM VẠCH VÀNG PHÍA BẮC
             // ------------------------------------------------------------------------
-            if (player.hasRod && player.pos.z <= NORTH_ESCAPE_Z) {
-                triggerGameOver(true);
+            if (player.pos.z <= NORTH_ESCAPE_Z) {
+                if (player.hasRod && player.hasCaughtFish) {
+                    triggerGameOver(true);
+                } else if (player.hasRod && !player.hasCaughtFish) {
+                    showToast('🐟 Bạn chưa câu trộm cá! Hãy quay lại Dòng Sông ở giữa bản đồ để câu 1 con cá trước!', 'info');
+                }
             }
         }
 
@@ -1261,10 +1912,16 @@
         // 11. XỬ LÝ KHI BỊ BẢO VỆ BẮT: RƠI CẦN CÂU & AI LÙI RA 10 MÉT LẬP BIÊN BẢN
         // ============================================================================
         function onPlayerCaughtByGuard(catchingGuard) {
+            cancelFishingCast();
             player.hasRod = false;
             player.rodPickupCooldown = 1.1; // Ngăn nhặt lại ngay trong tích tắc vừa rơi
             gameState.isBeingCited = true;
             gameState.citingGuard = catchingGuard;
+
+            // Hiển thị cá trên cần câu bị rơi nếu người chơi đã câu được cá
+            if (droppedRodFishMesh) {
+                droppedRodFishMesh.visible = fishing.caughtCount > 0;
+            }
 
             // Vị trí cần câu rơi ngay tại chỗ người chơi bị bắt
             const dropPos = findSafeGroundPosition(player.pos.x, player.pos.z);
@@ -1304,42 +1961,70 @@
         }
 
         // ============================================================================
-        // 12. CẬP NHẬT GIAO DIỆN HUD & LA BÀN RADAR MINI
+        // 12. CẬP NHẬT GIAO DIỆN HUD & LA BÀN RADAR MINI (96x96PX)
         // ============================================================================
         function updateHUD() {
-            // Khoảng cách tới Vùng Vàng phía Bắc
             const distNorth = Math.max(0, Math.round(player.pos.z - NORTH_ESCAPE_Z));
-            hudNorthDist.textContent = `Cách đích Bắc: ${distNorth}m`;
+            hudNorthDist.textContent = `Đích Bắc: ${distNorth}m`;
+
+            // Trạng thái Cá Câu Được
+            if (player.hasCaughtFish) {
+                hudFishState.textContent = '🐟 Đã câu được Cá Quý (1/1)';
+                hudFishState.className = 'font-bold text-emerald-400';
+            } else if (fishing.state === 'BITING') {
+                hudFishState.textContent = '💦 CÁ ĐANG CẮN CÂU! (Nhấn F/Click)';
+                hudFishState.className = 'font-bold text-rose-400 animate-pulse';
+            } else if (fishing.state === 'CASTED') {
+                hudFishState.textContent = '🎣 Đang thả phao chờ cá...';
+                hudFishState.className = 'font-bold text-sky-300';
+            } else {
+                hudFishState.textContent = '🌊 Ra sông câu cá (0/1)';
+                hudFishState.className = 'font-bold text-amber-300';
+            }
+
+            // Hiển thị gợi ý câu cá khi đứng gần dòng sông
+            if (player.hasRod && !player.hasCaughtFish && isPlayerNearRiverForFishing()) {
+                fishingPrompt.classList.remove('hidden');
+                if (fishing.state === 'BITING') {
+                    fishingPrompt.innerHTML = '💦 <span class="text-amber-300 font-black">CÁ ĐỚP MỒI!</span> Nhấn <span class="text-white">[Click Trái / F]</span> ngay để giật cá lên cần!';
+                } else if (fishing.state === 'CASTED') {
+                    fishingPrompt.innerHTML = '🎣 Phao đang dưới nước... Đợi cá đớp mồi rồi nhấn <span class="text-amber-300">[Click Trái / F]</span>!';
+                } else {
+                    fishingPrompt.innerHTML = '🎣 Bạn đang ở gần sông! Nhấn <span class="text-amber-300">[Click Trái]</span> hoặc <span class="text-amber-300">[Phím F]</span> để quăng câu!';
+                }
+            } else {
+                fishingPrompt.classList.add('hidden');
+            }
 
             // Trạng thái cần câu
             if (player.hasRod) {
-                hudRodState.innerHTML = '<span>🐟 Đang giữ Cần Câu</span>';
+                hudRodState.innerHTML = '<span>🎣 Đang cầm Cần Câu</span>';
                 hudRodState.className = 'font-bold text-emerald-400';
             } else {
                 const distRod = Math.round(Math.hypot(
                     player.pos.x - gameState.rodDropPos.x,
                     player.pos.z - gameState.rodDropPos.z
                 ));
-                hudRodState.innerHTML = `<span>⚠️ Rơi Cần Câu (Cách ${distRod}m)</span>`;
+                hudRodState.innerHTML = `<span>⚠️ Rơi Cần (Cách ${distRod}m)</span>`;
                 hudRodState.className = 'font-bold text-amber-400 animate-pulse';
             }
 
             // Trạng thái Ẩn nấp cây thông
             if (player.isStealthHidden) {
-                hudStealthState.textContent = '🌲 Tàng hình trong Cây Thông';
-                hudStealthState.className = 'font-bold text-emerald-300 px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/40';
+                hudStealthState.textContent = '🌲 Tàng hình (Cây Thông)';
+                hudStealthState.className = 'font-bold text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/40';
                 vignette.className = 'fixed inset-0 z-10 stealth-vignette';
             } else if (player.noiseExposedTimer > 0) {
                 hudStealthState.textContent = `🔊 Lộ tiếng động (${player.noiseExposedTimer.toFixed(1)}s)`;
-                hudStealthState.className = 'font-bold text-rose-300 px-2 py-0.5 rounded bg-rose-950/90 border border-rose-500/40';
+                hudStealthState.className = 'font-bold text-rose-300 px-1.5 py-0.5 rounded bg-rose-950/90 border border-rose-500/40';
                 vignette.className = 'fixed inset-0 z-10 danger-vignette';
             } else if (player.inBush) {
-                hudStealthState.textContent = '🌿 Đang động đậy trong bụi';
-                hudStealthState.className = 'font-bold text-amber-300 px-2 py-0.5 rounded bg-amber-950/80';
+                hudStealthState.textContent = '🌿 Đang động đậy';
+                hudStealthState.className = 'font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-950/80';
                 vignette.className = 'fixed inset-0 z-10';
             } else {
                 hudStealthState.textContent = '👀 Đang lộ diện';
-                hudStealthState.className = 'font-bold text-slate-200 px-2 py-0.5 rounded bg-slate-800';
+                hudStealthState.className = 'font-bold text-slate-200 px-1.5 py-0.5 rounded bg-slate-800';
                 vignette.className = gameState.isBeingCited ? 'fixed inset-0 z-10 danger-vignette' : 'fixed inset-0 z-10';
             }
 
@@ -1348,10 +2033,10 @@
                 hudMoveState.textContent = '🧗 Parkour leo tường!';
                 hudMoveState.className = 'font-bold text-amber-400';
             } else if (!player.onGround) {
-                hudMoveState.textContent = '🦘 Đang nhảy / trên không';
+                hudMoveState.textContent = '🦘 Đang nhảy';
                 hudMoveState.className = 'font-bold text-purple-400';
             } else if (player.isSprinting) {
-                hudMoveState.textContent = '⚡ Chạy nước rút (Shift)';
+                hudMoveState.textContent = '⚡ Chạy nước rút';
                 hudMoveState.className = 'font-bold text-emerald-400';
             } else if (player.isMovingHorizontally) {
                 hudMoveState.textContent = '🚶 Đang di chuyển';
@@ -1361,20 +2046,20 @@
                 hudMoveState.className = 'font-bold text-slate-400';
             }
 
-            // Vẽ Radar Mini
-            drawMiniRadar();
+            if (!gameState.minimapCollapsed) {
+                drawMiniRadar();
+            }
         }
 
         function drawMiniRadar() {
-            const w = radarCanvas.width;
-            const h = radarCanvas.height;
+            const w = 96;
+            const h = 96;
             const cx = w / 2;
             const cy = h / 2;
-            const radius = w / 2 - 6;
+            const radius = w / 2 - 4;
 
             radarCtx.clearRect(0, 0, w, h);
 
-            // Vòng tròn nền radar
             radarCtx.save();
             radarCtx.beginPath();
             radarCtx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -1383,20 +2068,17 @@
             radarCtx.fillStyle = '#090d16';
             radarCtx.fillRect(0, 0, w, h);
 
-            // Lưới radar
             radarCtx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
             radarCtx.lineWidth = 1;
             radarCtx.beginPath();
             radarCtx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
             radarCtx.stroke();
 
-            const scale = 0.42; // Tỉ lệ mét -> pixel trên radar
+            const scale = 0.30; // Tỉ lệ mét -> pixel gọn trong vòng 96x96
 
-            // Hàm chuyển tọa độ Thế Giới sang tọa độ xoay theo hướng nhìn của Người Chơi
             function worldToRadar(wx, wz) {
                 const dx = wx - player.pos.x;
                 const dz = wz - player.pos.z;
-                // Xoay ngược góc yaw để hướng trước mặt người chơi luôn hướng lên đỉnh radar
                 const cos = Math.cos(player.yaw);
                 const sin = Math.sin(player.yaw);
                 const rx = dx * cos - dz * sin;
@@ -1407,53 +2089,78 @@
                 };
             }
 
+            // Vẽ dải Sông trên Radar
+            radarCtx.strokeStyle = 'rgba(14, 165, 233, 0.55)';
+            radarCtx.lineWidth = 6;
+            radarCtx.beginPath();
+            let firstRiverPt = true;
+            for (let rx = -180; rx <= 180; rx += 20) {
+                const pt = worldToRadar(rx, getRiverCenterZ(rx));
+                if (firstRiverPt) {
+                    radarCtx.moveTo(pt.x, pt.y);
+                    firstRiverPt = false;
+                } else {
+                    radarCtx.lineTo(pt.x, pt.y);
+                }
+            }
+            radarCtx.stroke();
+
+            // Vẽ các chấm Cá cam dưới sông
+            radarCtx.fillStyle = '#fb923c';
+            for (const f of riverFishList) {
+                const fp = worldToRadar(f.mesh.position.x, f.mesh.position.z);
+                if (Math.hypot(fp.x - cx, fp.y - cy) < radius - 3) {
+                    radarCtx.fillRect(fp.x - 1, fp.y - 1, 2.2, 2.2);
+                }
+            }
+
             // Vẽ các tòa nhà gần đó trên radar
             radarCtx.fillStyle = 'rgba(100, 116, 139, 0.45)';
             for (const b of buildings) {
                 if (Math.hypot(b.x - player.pos.x, b.z - player.pos.z) < 140) {
                     const p = worldToRadar(b.x, b.z);
-                    radarCtx.fillRect(p.x - 3, p.y - 3, 6, 6);
+                    radarCtx.fillRect(p.x - 2, p.y - 2, 4, 4);
                 }
             }
 
             // Vẽ hướng Vùng Tẩu Thoát Phía Bắc (Điểm sáng vàng trên viền radar)
             const northPoint = worldToRadar(player.pos.x, NORTH_ESCAPE_Z);
             const angleToNorth = Math.atan2(northPoint.y - cy, northPoint.x - cx);
-            const bx = cx + Math.cos(angleToNorth) * (radius - 6);
-            const by = cy + Math.sin(angleToNorth) * (radius - 6);
+            const bx = cx + Math.cos(angleToNorth) * (radius - 4);
+            const by = cy + Math.sin(angleToNorth) * (radius - 4);
             radarCtx.fillStyle = '#facc15';
             radarCtx.beginPath();
-            radarCtx.arc(bx, by, 5.5, 0, Math.PI * 2);
+            radarCtx.arc(bx, by, 4, 0, Math.PI * 2);
             radarCtx.fill();
 
             // Vẽ Cần Câu Bị Rơi (nếu có)
             if (!player.hasRod) {
                 const rodPt = worldToRadar(gameState.rodDropPos.x, gameState.rodDropPos.z);
-                const rx = Math.max(8, Math.min(w - 8, rodPt.x));
-                const ry = Math.max(8, Math.min(h - 8, rodPt.y));
+                const rx = Math.max(6, Math.min(w - 6, rodPt.x));
+                const ry = Math.max(6, Math.min(h - 6, rodPt.y));
                 radarCtx.fillStyle = '#22d3ee';
                 radarCtx.beginPath();
-                radarCtx.arc(rx, ry, 5, 0, Math.PI * 2);
+                radarCtx.arc(rx, ry, 3.8, 0, Math.PI * 2);
                 radarCtx.fill();
             }
 
             // Vẽ 4 Bảo Vệ
             for (const g of guards) {
                 const gp = worldToRadar(g.mesh.position.x, g.mesh.position.z);
-                const gx = Math.max(8, Math.min(w - 8, gp.x));
-                const gy = Math.max(8, Math.min(h - 8, gp.y));
+                const gx = Math.max(6, Math.min(w - 6, gp.x));
+                const gy = Math.max(6, Math.min(h - 6, gp.y));
                 radarCtx.fillStyle = '#ef4444';
                 radarCtx.beginPath();
-                radarCtx.arc(gx, gy, 4.2, 0, Math.PI * 2);
+                radarCtx.arc(gx, gy, 3.2, 0, Math.PI * 2);
                 radarCtx.fill();
             }
 
             // Vẽ Người Chơi ở tâm Radar
             radarCtx.fillStyle = '#34d399';
             radarCtx.beginPath();
-            radarCtx.moveTo(cx, cy - 6);
-            radarCtx.lineTo(cx - 4.5, cy + 5);
-            radarCtx.lineTo(cx + 4.5, cy + 5);
+            radarCtx.moveTo(cx, cy - 4.5);
+            radarCtx.lineTo(cx - 3.5, cy + 4);
+            radarCtx.lineTo(cx + 3.5, cy + 4);
             radarCtx.closePath();
             radarCtx.fill();
 
@@ -1493,15 +2200,15 @@
             resultBox.classList.remove('hidden');
 
             if (isVictory) {
-                menuTitle.textContent = '🎉 TẨU THOÁT THÀNH CÔNG!';
-                menuSubtitle.textContent = 'Bạn đã mang theo chiến lợi phẩm vượt qua biên giới phía Bắc an toàn!';
+                menuTitle.textContent = '🎉 CÂU TRỘM & TẨU THOÁT THÀNH CÔNG!';
+                menuSubtitle.textContent = `Bạn đã câu được ${fishing.caughtCount} con cá quý từ Dòng Sông 3D và vượt qua biên giới phía Bắc an toàn!`;
                 resultBox.className = 'mb-6 p-5 rounded-2xl border-2 bg-emerald-950/80 border-emerald-400';
-                resultHeading.textContent = '🏆 CHIẾN THẮNG TUYỆT ĐỐI!';
+                resultHeading.textContent = `🏆 CHIẾN THẮNG (${fishing.caughtCount} CÁ CHIẾN LỢI PHẨM)!`;
                 resultHeading.className = 'text-2xl font-black mb-1 text-emerald-300';
-                resultDesc.textContent = `Chúc mừng siêu trộm! Biên bản mới chỉ lập được ${Math.floor(gameState.citationProgress)}%. Nhấn nút bên dưới để thử sức với một bản đồ ngẫu nhiên mới!`;
+                resultDesc.textContent = `Xuất sắc! Biên bản mới chỉ lập được ${Math.floor(gameState.citationProgress)}%. Nhấn nút bên dưới để trải nghiệm một bản đồ sông ngòi & đô thị ngẫu nhiên mới!`;
             } else {
                 menuTitle.textContent = '🚓 ĐÃ BỊ LẬP BIÊN BẢN 100%!';
-                menuSubtitle.textContent = 'Bảo vệ đã hoàn tất biên bản tịch thu cần câu và con cá của bạn!';
+                menuSubtitle.textContent = 'Bảo vệ đã hoàn tất biên bản tịch thu cần câu và số cá của bạn!';
                 resultBox.className = 'mb-6 p-5 rounded-2xl border-2 bg-rose-950/80 border-rose-500';
                 resultHeading.textContent = '❌ THẤT BẠI (BIÊN BẢN ĐẦY 100%)';
                 resultHeading.className = 'text-2xl font-black mb-1 text-rose-300';
@@ -1512,19 +2219,24 @@
         }
 
         function resetGameWithNewMap() {
+            cancelFishingCast();
+
             // Reset chỉ số người chơi
-            player.pos.set(0, PLAYER_EYE_HEIGHT, 150);
+            player.pos.set(0, PLAYER_EYE_HEIGHT, 135);
             player.vel.set(0, 0, 0);
-            player.yaw = 0; // Nhìn thẳng về hướng Bắc (Z âm)
+            player.yaw = 0; // Nhìn thẳng về hướng Bắc (về phía Dòng Sông & Đích Bắc)
             player.pitch = 0;
             player.onGround = true;
             player.isSprinting = false;
             player.isClimbing = false;
             player.hasRod = true;
+            player.hasCaughtFish = false;
             player.inBush = false;
             player.isStealthHidden = false;
             player.noiseExposedTimer = 0;
             player.rodPickupCooldown = 0;
+
+            if (fppFishMesh) fppFishMesh.visible = false;
 
             // Reset trạng thái trận đấu
             gameState.isGameOver = false;
@@ -1539,19 +2251,27 @@
             resultBox.classList.add('hidden');
 
             menuTitle.textContent = 'TRỘM CÁ TẨU THOÁT';
-            menuSubtitle.innerHTML = 'Bạn vừa câu trộm được con cá quý tại khu đô thị Voxel! Hãy cầm chặt cần câu và chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn và lập biên bản!';
-            btnPlay.textContent = '▶️ BẮT ĐẦU TẨU THOÁT (KHÓA CHUỘT)';
+            menuSubtitle.innerHTML = 'Hãy tiến ra <span class="text-sky-400 font-bold">Dòng Sông Voxel</span> ở giữa bản đồ, quăng cần câu trộm 1 chú cá quý rồi chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn!';
+            btnPlay.textContent = '▶️ BẮT ĐẦU TRẬN ĐẤU (KHÓA CHUỘT)';
 
             // Sinh lại bản đồ 400x400 ngẫu nhiên hoàn toàn mới
             generateProceduralWorld();
             updateHUD();
         }
 
+        function toggleMinimap() {
+            gameState.minimapCollapsed = !gameState.minimapCollapsed;
+            if (gameState.minimapCollapsed) {
+                radarBody.classList.add('hidden');
+            } else {
+                radarBody.classList.remove('hidden');
+            }
+        }
+
         // ============================================================================
-        // 14. SỰ KIỆN CHUỘT (POINTER LOCK) & BÀN PHÍM
+        // 14. SỰ KIỆN CHUỘT (POINTER LOCK), CLICK CÂU CÁ & BÀN PHÍM
         // ============================================================================
         function setupEventListeners() {
-            // Nút Bắt Đầu / Tiếp Tục
             btnPlay.addEventListener('click', () => {
                 if (gameState.isGameOver) {
                     resetGameWithNewMap();
@@ -1559,23 +2279,25 @@
                 renderer.domElement.requestPointerLock();
             });
 
-            // Nút Tạo Map Ngẫu Nhiên Mới
             btnReset.addEventListener('click', () => {
                 resetGameWithNewMap();
                 renderer.domElement.requestPointerLock();
             });
 
-            // Theo dõi trạng thái PointerLock
+            btnToggleMap.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMinimap();
+            });
+
             document.addEventListener('pointerlockchange', () => {
                 if (document.pointerLockElement === renderer.domElement) {
                     gameState.isRunning = true;
                     menuOverlay.classList.add('hidden');
                     hud.classList.remove('hidden');
                     crosshair.classList.remove('hidden');
-                    clock.getDelta(); // Reset bước nhảy thời gian
+                    clock.getDelta();
                 } else {
                     gameState.isRunning = false;
-                    // Xóa trạng thái đè phím khi thoát chuột
                     for (const k in keys) keys[k] = false;
                     if (!gameState.isGameOver) {
                         menuOverlay.classList.remove('hidden');
@@ -1584,32 +2306,41 @@
                 }
             });
 
-            // Xoay góc nhìn thứ nhất bằng chuột
+            // Click chuột trái khi đang khóa chuột để Quăng Câu / Giật Cá
+            window.addEventListener('mousedown', (e) => {
+                if (!gameState.isRunning || gameState.isGameOver) return;
+                if (e.button === 0) {
+                    handleFishingAction();
+                }
+            });
+
             document.addEventListener('mousemove', (e) => {
                 if (!gameState.isRunning) return;
                 const sensitivity = 0.0022;
                 player.yaw -= e.movementX * sensitivity;
                 player.pitch -= e.movementY * sensitivity;
-                // Giới hạn ngẩng lên / cúi xuống
                 const maxPitch = Math.PI / 2 - 0.08;
                 player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
             });
 
-            // Nhấn phím
             window.addEventListener('keydown', (e) => {
                 if (e.code in keys) {
                     keys[e.code] = true;
                 }
+                if (e.code === 'KeyF' && gameState.isRunning && !gameState.isGameOver) {
+                    handleFishingAction();
+                }
+                if (e.code === 'KeyM') {
+                    toggleMinimap();
+                }
             });
 
-            // Nhả phím
             window.addEventListener('keyup', (e) => {
                 if (e.code in keys) {
                     keys[e.code] = false;
                 }
             });
 
-            // Tự động co giãn khung hình khi đổi kích thước cửa sổ
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -1625,13 +2356,13 @@
 
             const dt = Math.min(clock.getDelta(), 0.1);
 
-            // Hiệu ứng nhấp nháy vạch sáng vàng ở biên giới phía Bắc
             if (escapeBeaconMesh) {
                 escapeBeaconMesh.material.opacity = 0.45 + Math.sin(clock.getElapsedTime() * 3) * 0.15;
             }
 
             if (gameState.isRunning && !gameState.isGameOver) {
                 updatePlayer(dt);
+                updateRiverAndFishing(dt);
                 updateGuards(dt);
                 updateHUD();
             }
@@ -1639,7 +2370,6 @@
             renderer.render(scene, camera);
         }
 
-        // Khởi chạy khi trang tải xong
         window.onload = function () {
             initThreeJS();
             animate();
