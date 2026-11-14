@@ -913,6 +913,313 @@
         }
 
         // ============================================================================
+        // 7. TẠO ĐỊA HÌNH ĐỒI NÚI GỒ GHỀ 3D, DÒNG SÔNG, CẦU GỖ & ĐÀN CÁ
+        // ============================================================================
+        function createRealisticTerrainAndRiver() {
+            riverFishList = [];
+
+            // 1. Lưới địa hình Đồi Núi 3D mượt mà với màu đỉnh cỏ xanh & lòng sông cát
+            const segs = 130;
+            const terrainGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, segs, segs);
+            terrainGeo.rotateX(-Math.PI / 2);
+
+            const posAttr = terrainGeo.attributes.position;
+            const colors = [];
+            const colorObj = new THREE.Color();
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vz = posAttr.getZ(i);
+                const vy = getTerrainHeight(vx, vz);
+                posAttr.setY(i, vy);
+
+                const distRiver = Math.abs(vz - getRiverCenterZ(vx));
+                if (vy < -0.35) {
+                    // Đáy sông bùn & cát sẫm
+                    colorObj.setHex(0x475569);
+                } else if (distRiver < RIVER_HALF_WIDTH + 3.2) {
+                    // Bờ cát vàng sỏi đá ven sông
+                    colorObj.setHex(0xd6d3d1);
+                } else if (vy > 4.2) {
+                    // Đỉnh đồi cao đá rêu phong
+                    colorObj.setHex(0x3f6212);
+                } else if (vy > 1.8) {
+                    // Sườn đồi cỏ xanh non
+                    colorObj.setHex(0x4d7c0f);
+                } else {
+                    // Thung lũng cỏ xanh thẫm
+                    colorObj.setHex(0x365314);
+                }
+                colors.push(colorObj.r, colorObj.g, colorObj.b);
+            }
+
+            terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            terrainGeo.computeVertexNormals();
+
+            const terrainMat = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.92,
+                metalness: 0.05
+            });
+            terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.receiveShadow = true;
+            worldGroup.add(terrainMesh);
+
+            // 2. Mặt nước sông 3D uốn lượn trong suốt
+            const waterSegsX = 90;
+            const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE - 6, RIVER_HALF_WIDTH * 2.15, waterSegsX, 4);
+            waterGeo.rotateX(-Math.PI / 2);
+            const wPos = waterGeo.attributes.position;
+            for (let i = 0; i < wPos.count; i++) {
+                const wx = wPos.getX(i);
+                const wzOffset = wPos.getZ(i);
+                wPos.setZ(i, getRiverCenterZ(wx) + wzOffset);
+                wPos.setY(i, WATER_LEVEL_Y);
+            }
+            waterGeo.computeVertexNormals();
+
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x0284c7,
+                roughness: 0.15,
+                metalness: 0.35,
+                transparent: true,
+                opacity: 0.78
+            });
+            waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            worldGroup.add(waterMesh);
+
+            // 3. Xây 3 cây cầu gỗ vòm bắc qua sông
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+            const postMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
+
+            for (const bx of BRIDGE_X_LIST) {
+                const centerZ = getRiverCenterZ(bx);
+                const bridgeLen = RIVER_HALF_WIDTH * 2 + 7;
+                const bridgeGroup = new THREE.Group();
+
+                const deck = new THREE.Mesh(
+                    new THREE.BoxGeometry(BRIDGE_WIDTH, 0.45, bridgeLen),
+                    woodMat
+                );
+                deck.position.set(bx, 0.38, centerZ);
+                deck.castShadow = true;
+                deck.receiveShadow = true;
+                bridgeGroup.add(deck);
+
+                // Đăng ký mặt sàn cầu gỗ để người chơi & bảo vệ bước lên được
+                platformColliders.push({
+                    minX: bx - BRIDGE_WIDTH / 2,
+                    maxX: bx + BRIDGE_WIDTH / 2,
+                    minZ: centerZ - bridgeLen / 2,
+                    maxZ: centerZ + bridgeLen / 2,
+                    y: 0.6
+                });
+
+                // Cột trụ & tay vịn 2 bên cầu
+                for (let zOff = -bridgeLen / 2 + 1.5; zOff <= bridgeLen / 2 - 1.5; zOff += 4.5) {
+                    const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.4, 10), postMat);
+                    postL.position.set(bx - BRIDGE_WIDTH / 2 + 0.3, 0.1, centerZ + zOff);
+                    const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.4, 10), postMat);
+                    postR.position.set(bx + BRIDGE_WIDTH / 2 - 0.3, 0.1, centerZ + zOff);
+                    bridgeGroup.add(postL, postR);
+                }
+
+                worldGroup.add(bridgeGroup);
+            }
+
+            // 4. Tạo 30 chú cá 3D chân thực bơi lội dưới lòng sông
+            const fishColors = [0xf97316, 0xfacc15, 0x38bdf8, 0xf43f5e, 0x4ade80];
+            for (let i = 0; i < 30; i++) {
+                const fx = (Math.random() - 0.5) * 350;
+                const fz = getRiverCenterZ(fx) + (Math.random() - 0.5) * (RIVER_HALF_WIDTH * 1.4);
+                const color = fishColors[i % fishColors.length];
+
+                const fishGroup = new THREE.Group();
+
+                const bodyGeo = new THREE.SphereGeometry(0.28, 14, 10);
+                bodyGeo.scale(0.65, 0.55, 1.65);
+                const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.25 });
+                const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+                fishGroup.add(bodyMesh);
+
+                const tailPivot = new THREE.Group();
+                tailPivot.position.set(0, 0, -0.42);
+                const tailGeo = new THREE.ConeGeometry(0.24, 0.38, 3);
+                tailGeo.rotateX(Math.PI / 2);
+                tailGeo.scale(0.3, 1, 1);
+                const tailMesh = new THREE.Mesh(tailGeo, bodyMat);
+                tailPivot.add(tailMesh);
+                fishGroup.add(tailPivot);
+
+                fishGroup.position.set(fx, WATER_LEVEL_Y - 0.45, fz);
+                worldGroup.add(fishGroup);
+
+                riverFishList.push({
+                    mesh: fishGroup,
+                    tailPivot,
+                    color,
+                    speed: 2.6 + Math.random() * 2.8,
+                    dirX: Math.random() < 0.5 ? 1 : -1,
+                    swimPhase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        // ============================================================================
+        // 8. XÂY DỰNG NHÀ HOANG 2 TẦNG CÓ CẦU THANG & CHỖ NÚP
+        // ============================================================================
+        function buildAbandonedHouse(hx, hz) {
+            const w = 14;
+            const d = 14;
+            const wallH1 = 4.4; // Chiều cao tầng 1
+            const wallH2 = 3.8; // Chiều cao tường chắn tầng 2
+            const wallThick = 0.6;
+            const baseY = getTerrainHeight(hx, hz);
+
+            const houseGroup = new THREE.Group();
+            houseGroup.position.set(hx, baseY, hz);
+
+            const plasterMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
+            const brickMat = new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.9 });
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.88 });
+            const crateMat = new THREE.MeshStandardMaterial({ color: 0x713f12, roughness: 0.85 });
+
+            // Nền móng đá chống lún trên sườn đồi
+            const foundation = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 3.2, d + 0.6), brickMat);
+            foundation.position.set(0, -1.4, 0);
+            foundation.receiveShadow = true;
+            houseGroup.add(foundation);
+
+            platformColliders.push({
+                minX: hx - w / 2,
+                maxX: hx + w / 2,
+                minZ: hz - d / 2,
+                maxZ: hz + d / 2,
+                y: baseY + 0.2
+            });
+
+            // Hàm tiện ích thêm một mảng tường kèm va chạm (Collider)
+            function addWallSegment(localX, localY, localZ, sizeX, sizeY, sizeZ, mat = plasterMat, climbable = true) {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), mat);
+                mesh.position.set(localX, localY + sizeY / 2, localZ);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                houseGroup.add(mesh);
+
+                wallColliders.push({
+                    minX: hx + localX - sizeX / 2,
+                    maxX: hx + localX + sizeX / 2,
+                    minZ: hz + localZ - sizeZ / 2,
+                    maxZ: hz + localZ + sizeZ / 2,
+                    minY: baseY + localY,
+                    maxY: baseY + localY + sizeY,
+                    climbable
+                });
+            }
+
+            // 1. Tường tầng 1 (Có cửa chính ở phía Nam và cửa sổ vỡ ở 2 bên)
+            // Tường Bắc (Kín)
+            addWallSegment(0, 0.2, -d / 2 + wallThick / 2, w, wallH1, wallThick);
+            // Tường Nam (Chia 2 bên chừa lối cửa chính rộng 3.8m ở giữa)
+            addWallSegment(-4.5, 0.2, d / 2 - wallThick / 2, 5.0, wallH1, wallThick);
+            addWallSegment(4.5, 0.2, d / 2 - wallThick / 2, 5.0, wallH1, wallThick);
+            // Tường Tây
+            addWallSegment(-w / 2 + wallThick / 2, 0.2, 0, wallThick, wallH1, d);
+            // Tường Đông (Chừa lối phụ nhỏ)
+            addWallSegment(w / 2 - wallThick / 2, 0.2, -3.5, wallThick, wallH1, 7.0);
+            addWallSegment(w / 2 - wallThick / 2, 0.2, 4.8, wallThick, wallH1, 4.4);
+
+            // Vách ngăn đổ nát bên trong tầng 1 tạo góc khuất để núp
+            addWallSegment(-1.8, 0.2, -1.5, 5.5, 3.2, 0.5, brickMat, true);
+
+            // Các thùng gỗ cũ dưới gầm cầu thang để trốn
+            const crate1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.5, 1.6), crateMat);
+            crate1.position.set(-4.2, 0.95, -4.2);
+            crate1.castShadow = true;
+            houseGroup.add(crate1);
+
+            // 2. Cầu thang bộ 9 bậc đi lên Tầng 2 (Nằm dọc vách tường phía Tây)
+            const numSteps = 9;
+            const stepHeight = wallH1 / numSteps;
+            const stairStartZ = 4.6;
+            const stairEndZ = -2.6;
+            const stepDepth = (stairStartZ - stairEndZ) / numSteps;
+
+            for (let s = 0; s < numSteps; s++) {
+                const sy = 0.2 + (s + 1) * stepHeight;
+                const sz = stairStartZ - (s + 0.5) * stepDepth;
+                const stepMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.7, 0.32, stepDepth + 0.25),
+                    woodMat
+                );
+                stepMesh.position.set(-w / 2 + 2.0, sy - 0.16, sz);
+                stepMesh.castShadow = true;
+                stepMesh.receiveShadow = true;
+                houseGroup.add(stepMesh);
+
+                platformColliders.push({
+                    minX: hx - w / 2 + 0.5,
+                    maxX: hx - w / 2 + 3.4,
+                    minZ: hz + sz - stepDepth * 0.65,
+                    maxZ: hz + sz + stepDepth * 0.65,
+                    y: baseY + sy
+                });
+            }
+
+            // 3. Sàn gỗ Tầng 2 (Chừa ô cầu thang ở góc Tây để đi lên)
+            const floor2Y = 0.2 + wallH1;
+            const mainDeckW = w - 3.6;
+            const mainDeck = new THREE.Mesh(
+                new THREE.BoxGeometry(mainDeckW, 0.4, d - 0.8),
+                woodMat
+            );
+            mainDeck.position.set(1.6, floor2Y - 0.2, 0);
+            mainDeck.castShadow = true;
+            mainDeck.receiveShadow = true;
+            houseGroup.add(mainDeck);
+
+            platformColliders.push({
+                minX: hx - w / 2 + 3.4,
+                maxX: hx + w / 2 - 0.4,
+                minZ: hz - d / 2 + 0.4,
+                maxZ: hz + d / 2 - 0.4,
+                y: baseY + floor2Y
+            });
+
+            // Chiếu nghỉ tầng 2 nối đỉnh cầu thang với sàn chính
+            const landingMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(3.2, 0.4, 3.8),
+                woodMat
+            );
+            landingMesh.position.set(-w / 2 + 2.0, floor2Y - 0.2, -4.6);
+            houseGroup.add(landingMesh);
+
+            platformColliders.push({
+                minX: hx - w / 2 + 0.4,
+                maxX: hx - w / 2 + 3.6,
+                minZ: hz - d / 2 + 0.4,
+                maxZ: hz - 2.5,
+                y: baseY + floor2Y
+            });
+
+            // 4. Tường chắn đổ nát trên Tầng 2 để người chơi ngồi/nằm núp trên lầu
+            addWallSegment(1.5, floor2Y, -d / 2 + wallThick / 2, w - 3.2, wallH2 * 0.75, wallThick, brickMat, true);
+            addWallSegment(w / 2 - wallThick / 2, floor2Y, 0, wallThick, wallH2 * 0.6, d - 2, brickMat, true);
+            addWallSegment(2.2, floor2Y, d / 2 - wallThick / 2, w - 5, 1.5, wallThick, brickMat, true);
+
+            worldGroup.add(houseGroup);
+
+            // Lưu thông tin nhà hoang để hiển thị trên Mini-map và tạo vùng ẩn nấp
+            abandonedHouses.push({ x: hx, z: hz, w, d });
+
+            // Vùng ẩn nấp tầng 1 & tầng 2 của Nhà Hoang
+            hideZones.push(
+                { x: hx, y: baseY + 0.2, z: hz, radius: 6.2, type: 'house' },
+                { x: hx + 1.5, y: baseY + floor2Y, z: hz, radius: 5.8, type: 'house' }
+            );
+        }
+
+        // ============================================================================
         // 8B. BIỂN CẤM CÂU CÁ, THÁP CANH BẢO VỆ & NHÀ VỆ SINH HOANG ĐỂ NÚP
         // ============================================================================
         function buildRealLifeVideoProps() {
