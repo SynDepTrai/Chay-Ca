@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trộm Cá Tẩu Thoát - 3D Voxel FPP</title>
+    <title>Trộm Cá Tẩu Thoát - 3D Realistic Stealth & Parkour</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Three.js r128 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -51,23 +51,23 @@
             min-height: 96px !important;
             flex: none !important;
         }
-        .voxel-font {
-            font-family: 'VT323', monospace;
-        }
-        /* Hiệu ứng viền màn hình khi núp hoặc bị truy đuổi */
+        /* Hiệu ứng viền màn hình khi núp, nằm rạp hoặc bị vây bắt */
         #vignette {
             pointer-events: none;
-            transition: box-shadow 0.3s ease;
+            transition: box-shadow 0.35s ease;
         }
         .stealth-vignette {
-            box-shadow: inset 0 0 110px 35px rgba(16, 185, 129, 0.45);
+            box-shadow: inset 0 0 115px 38px rgba(16, 185, 129, 0.48);
+        }
+        .prone-vignette {
+            box-shadow: inset 0 0 95px 25px rgba(15, 23, 42, 0.65);
         }
         .danger-vignette {
-            box-shadow: inset 0 0 120px 40px rgba(239, 68, 68, 0.55);
+            box-shadow: inset 0 0 125px 42px rgba(239, 68, 68, 0.6);
         }
         @keyframes pulse-fast {
             0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.04); opacity: 0.85; }
+            50% { transform: scale(1.03); opacity: 0.88; }
         }
         .animate-pulse-fast {
             animation: pulse-fast 0.8s infinite;
@@ -81,6 +81,15 @@
 
     <!-- VIGNETTE HIỆU ỨNG TRẠNG THÁI -->
     <div id="vignette" class="fixed inset-0 z-10"></div>
+
+    <!-- NHÃN 3D NỔI BÁO VỊ TRÍ RƠI CẦN CÂU TRÊN MÀN HÌNH -->
+    <div id="rod-world-marker" class="hidden fixed z-20 pointer-events-none -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+        <div class="px-3 py-1 rounded-full bg-amber-500/95 text-slate-950 font-black text-xs shadow-[0_0_20px_rgba(245,158,11,0.9)] border-2 border-white whitespace-nowrap animate-bounce">
+            ⚠️ ĐANG RƠI CẦN CÂU - THU HỒI NGAY! (<span id="rod-marker-dist">0m</span>)
+        </div>
+        <div class="w-0.5 h-5 bg-amber-400"></div>
+        <div class="w-3 h-3 rounded-full bg-cyan-300 border-2 border-white shadow-[0_0_12px_#22d3ee]"></div>
+    </div>
 
     <!-- TÂM NGẮM (CROSSHAIR) -->
     <div id="crosshair" class="fixed inset-0 pointer-events-none z-20 flex items-center justify-center hidden">
@@ -96,13 +105,13 @@
     <!-- HUD GIAO DIỆN TRONG GAME -->
     <div id="hud" class="fixed inset-0 pointer-events-none z-20 p-3 sm:p-4 flex flex-col justify-between hidden">
         
-        <!-- Hàng trên: Trạng thái bên trái & Cảnh báo biên bản ở giữa -->
+        <!-- Hàng trên: Trạng thái bên trái & Cảnh báo biên bản/vây bắt ở giữa -->
         <div class="flex justify-between items-start gap-3 pr-28">
             
-            <!-- Bảng trạng thái nhân vật gọn gàng -->
-            <div class="bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl w-[245px] space-y-1.5">
+            <!-- Bảng trạng thái nhân vật -->
+            <div class="bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl w-[265px] space-y-1.5">
                 <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">🎣 Trộm Cá 3D</span>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">🎣 Trộm Cá 3D Chân Thực</span>
                     <span id="hud-North-dist" class="text-[11px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30">Đích Bắc: 350m</span>
                 </div>
 
@@ -122,6 +131,14 @@
                     </span>
                 </div>
 
+                <!-- Tư thế (Đứng / Nằm rạp C) -->
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400">Tư thế (Phím C):</span>
+                    <span id="hud-posture-state" class="font-bold text-sky-300">
+                        🧍 Đang đứng
+                    </span>
+                </div>
+
                 <!-- Trạng thái Ẩn Nấp -->
                 <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-400">Ngụy trang:</span>
@@ -130,7 +147,7 @@
                     </span>
                 </div>
 
-                <!-- Trạng thái Vận Động (Chạy / Leo tường) -->
+                <!-- Trạng thái Vận Động (Chạy / Leo tường / Bò) -->
                 <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-400">Vận động:</span>
                     <span id="hud-move-state" class="font-bold text-sky-400">
@@ -138,33 +155,46 @@
                     </span>
                 </div>
 
-                <!-- Trạng thái Báo động AI -->
+                <!-- Trạng thái Báo động AI Vây Bắt -->
                 <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
-                    <span class="text-slate-400">Bảo vệ:</span>
+                    <span class="text-slate-400">Đội Bảo vệ:</span>
                     <span id="hud-ai-state" class="font-bold text-emerald-400">
                         🔍 Tuần tra (4)
                     </span>
                 </div>
             </div>
 
-            <!-- Cảnh báo Lập Biên Bản ở giữa trên màn hình -->
-            <div id="citation-panel" class="hidden flex-1 max-w-md mx-auto bg-red-950/90 border-2 border-red-500 rounded-2xl p-3.5 shadow-[0_0_40px_rgba(239,68,68,0.5)] animate-pulse-fast">
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs sm:text-sm font-black uppercase tracking-wider text-red-300 flex items-center gap-1.5">
-                        🚨 BẢO VỆ ĐANG LẬP BIÊN BẢN!
-                    </span>
-                    <span id="citation-percent" class="text-base font-black text-white">0%</span>
+            <!-- Cột giữa: Cảnh báo Vây Bắt & Thanh Lập Biên Bản Thu Hồi Cần Câu -->
+            <div class="flex-1 max-w-lg mx-auto flex flex-col gap-2">
+                <!-- Banner báo động Vây bắt toàn đội -->
+                <div id="swarm-banner" class="hidden bg-amber-950/90 border-2 border-amber-400 rounded-xl px-4 py-2 text-center shadow-lg">
+                    <div class="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-wider">
+                        📢 BÁO ĐỘNG ĐỎ: CẢ 4 BẢO VỆ ĐANG HỘI QUÂN VÂY BẮT!
+                    </div>
+                    <div id="swarm-los-text" class="text-[11px] text-amber-100 mt-0.5">
+                        Núp sau đồi núi, vào Nhà Hoang hoặc nhấn <b>[C] Nằm Rạp</b> trong cỏ cao để cắt tầm nhìn!
+                    </div>
                 </div>
-                <div class="w-full h-3.5 bg-red-900/80 rounded-full overflow-hidden border border-red-400/50 p-0.5">
-                    <div id="citation-bar" class="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 rounded-full transition-all duration-75" style="width: 0%;"></div>
+
+                <!-- Cảnh báo Rơi Cần Câu & Yêu cầu thu hồi (Lập Biên Bản) -->
+                <div id="citation-panel" class="hidden bg-red-950/95 border-2 border-red-500 rounded-2xl p-3.5 shadow-[0_0_45px_rgba(239,68,68,0.65)] animate-pulse-fast">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                            🚨 ĐANG RƠI CẦN CÂU! BẢO VỆ ĐANG LẬP BIÊN BẢN THU HỒI!
+                        </span>
+                        <span id="citation-percent" class="text-base font-black text-white">0%</span>
+                    </div>
+                    <div class="w-full h-3.5 bg-red-900/80 rounded-full overflow-hidden border border-red-400/50 p-0.5">
+                        <div id="citation-bar" class="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 rounded-full transition-all duration-75" style="width: 0%;"></div>
+                    </div>
+                    <p class="text-[11px] text-red-100 mt-1.5 font-medium text-center">
+                        ⚡ YÊU CẦU THU HỒI CẦN CÂU: Bảo vệ đang đứng canh ở cự ly <b>10m</b>. Hãy nhấn <span class="text-amber-300 font-bold">[C] Nằm Bò</span> qua cỏ hoặc lách góc khuất để chạm vào <span class="text-cyan-300 font-bold">Cột Sáng Cần Câu</span> trước khi đạt 100%!
+                    </p>
                 </div>
-                <p class="text-[11px] text-red-200 mt-1.5 font-medium text-center">
-                    ⚡ Cần câu đã rơi! Lách qua góc khuất (10m) để chạm vào <span class="text-amber-300 font-bold">Cần Câu Phát Sáng</span> trước khi đạt 100%!
-                </p>
             </div>
         </div>
 
-        <!-- MINI-MAP GÓC PHẢI TRÊN (KHÓA CỨNG 96x96PX, KHÔNG BAO GIỜ TRÀN MÀN HÌNH) -->
+        <!-- MINI-MAP GÓC PHẢI TRÊN (KHÓA CỨNG 96x96PX) -->
         <div id="minimap-box" class="bg-slate-900/90 backdrop-blur-md border border-slate-700/90 rounded-xl p-2 shadow-xl flex flex-col items-center pointer-events-auto">
             <div class="w-full flex items-center justify-between text-[9px] font-extrabold text-slate-300 uppercase tracking-wider mb-1 px-0.5">
                 <span>Bắc (Đích)</span>
@@ -175,8 +205,8 @@
                 <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1.5 text-[9px] text-slate-300 font-semibold leading-tight">
                     <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></i>Đích</span>
                     <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></i>Bảo vệ</span>
+                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-stone-400 inline-block"></i>Nhà hoang</span>
                     <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block"></i>Sông</span>
-                    <span class="flex items-center gap-1"><i class="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block"></i>Cá</span>
                 </div>
             </div>
         </div>
@@ -193,10 +223,10 @@
         <div class="flex justify-between items-end">
             <div class="bg-slate-900/80 backdrop-blur-sm border border-slate-700/70 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 hidden sm:flex flex-wrap items-center gap-3">
                 <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">W A S D</kbd> Di chuyển</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-sky-300 font-bold">Click Trái / F</kbd> Quăng câu & Giật cá</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-emerald-300 font-bold">C / Ctrl</kbd> Nằm rạp trốn</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-sky-300 font-bold">Click Trái / F</kbd> Câu cá</span>
                 <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-white font-bold">Shift</kbd> Chạy nhanh</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-bold">Đè W sát tường</kbd> Leo mái nhà</span>
-                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-emerald-300 font-bold">Đứng im ở Cây Thông</kbd> Tàng hình</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-bold">Đè W sát tường</kbd> Leo tường</span>
                 <span><kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-slate-300 font-bold">M</kbd> Ẩn/Hiện Map</span>
             </div>
 
@@ -215,15 +245,15 @@
 
             <!-- Badge -->
             <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase tracking-widest mb-3">
-                🧊 3D Voxel Fishing, Stealth & Parkour
+                🏔️ 3D Realistic Terrain, Grass Stealth & Swarm AI
             </div>
 
             <!-- Tiêu đề -->
             <h1 id="menu-title" class="text-3xl sm:text-5xl font-black tracking-tight text-white mb-2">
-                TRỘM CÁ TẨU THOÁT
+                TRỘM CÁ TẨU THOÁT 3D
             </h1>
             <p id="menu-subtitle" class="text-slate-300 text-sm sm:text-base max-w-xl mx-auto mb-6">
-                Hãy tiến ra <span class="text-sky-400 font-bold">Dòng Sông Voxel</span> ở giữa bản đồ, quăng cần câu trộm 1 chú cá quý rồi chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn!
+                Băng qua <span class="text-emerald-400 font-bold">Đồi Núi Gồ Ghề & Thảm Cỏ Cao</span>, ra sông câu trộm 1 chú cá quý, ẩn nấp trong <span class="text-amber-300 font-bold">Nhà Hoang 2 Tầng</span> và chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng Phía Bắc</span>!
             </p>
 
             <!-- Hộp thông báo Kết quả trận đấu (Ẩn khi mới vào) -->
@@ -235,20 +265,20 @@
             <!-- Danh sách Cơ chế nổi bật -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left mb-7">
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
-                    <div class="font-bold text-sky-400 text-sm mb-1">🎣 Câu Cá 3D Dưới Sông Thật</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Ra bờ sông hoặc cầu gỗ, nhấn <b class="text-white">Click Trái / F</b> để quăng phao. Khi cá bơi lại đớp mồi làm phao chìm, nhấn lần nữa để giật cá lên cần!</p>
+                    <div class="font-bold text-emerald-400 text-sm mb-1">🌿 Đồi Núi, Cỏ Cao & Nằm Rạp (Phím C)</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">Địa hình đồi núi 3D chân thực nhiều cỏ cao. Nhấn <b class="text-white">Phím C / Ctrl</b> để nằm rạp xuống đất trốn trong cỏ hoặc bụi thông!</p>
                 </div>
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
-                    <div class="font-bold text-amber-400 text-sm mb-1">🏃 Parkour & Chạy Nước Rút</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Giữ <b class="text-white">Shift</b> để chạy nhanh hơn bảo vệ. Tiến sát tòa nhà và đè <b class="text-white">W</b> để tự động bám tường trèo lên nóc nhà!</p>
+                    <div class="font-bold text-amber-400 text-sm mb-1">🏚️ Nhà Hoang Thưa Thớt Có Cầu Thang</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">Các ngôi <b class="text-white">Nhà Hoang 2 tầng</b> nằm rải rác trên đồi có bậc cầu thang đi lên gác và góc khuất kín đáo để cắt tầm nhìn bảo vệ.</p>
                 </div>
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
-                    <div class="font-bold text-emerald-400 text-sm mb-1">🌲 Núp Lùm Cây Thông</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Đứng yên trong tán cây thông sẽ <b class="text-white">tàng hình 100%</b>. Nếu nhúc nhích trong lùm cây sẽ có tỉ lệ sột soạt làm lộ vị trí!</p>
+                    <div class="font-bold text-rose-400 text-sm mb-1">🚨 AI Vây Bắt Tập Trung & Leo Tường</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">Khi bị lộ vị trí, <b class="text-white">cả 4 bảo vệ sẽ hội quân vây bắt</b> và biết tự leo tường/cầu thang cho tới khi bạn khuất tầm nhìn (LOS) hoàn toàn!</p>
                 </div>
                 <div class="bg-slate-800/75 border border-slate-700/80 rounded-xl p-3.5">
-                    <div class="font-bold text-rose-400 text-sm mb-1">📋 Rơi Cần Câu & Lập Biên Bản</div>
-                    <p class="text-xs text-slate-300 leading-relaxed">Khi bị bắt, cần câu rơi xuống đất, bảo vệ lùi ra <b class="text-white">10m</b> đứng canh và lập biên bản (0% -> 100%). Hãy lách góc khuất để nhặt lại!</p>
+                    <div class="font-bold text-sky-400 text-sm mb-1">📋 Báo Rơi Cần Câu & Thu Hồi</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">Khi bị bắt, hệ thống báo rõ vị trí <b class="text-white">Đang Rơi Cần Câu</b>. Bảo vệ lùi ra 10m lập biên bản, hãy nằm bò hoặc lách góc khuất để thu hồi!</p>
                 </div>
             </div>
 
@@ -258,7 +288,7 @@
                     ▶️ BẮT ĐẦU TRẬN ĐẤU (KHÓA CHUỘT)
                 </button>
                 <button id="btn-reset" class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/40 font-extrabold text-sm transition transform hover:-translate-y-0.5 cursor-pointer">
-                    🔄 TẠO MAP NGẪU NHIÊN MỚI
+                    🔄 TẠO ĐỊA HÌNH NGẪU NHIÊN MỚI
                 </button>
             </div>
         </div>
@@ -274,40 +304,49 @@
         const NORTH_ESCAPE_Z = -192; // Biên giới phía Bắc nơi có cổng hào quang vàng
         const RIVER_HALF_WIDTH = 14; // Chiều rộng một bên dòng sông (tổng rộng 28m)
         const BRIDGE_X_LIST = [-95, 0, 95]; // 3 cây cầu gỗ bắc qua sông
-        const BRIDGE_WIDTH = 10;
+        const BRIDGE_WIDTH = 9.5;
+        const WATER_LEVEL_Y = -0.55;
 
-        const PLAYER_EYE_HEIGHT = 2.6;
-        const PLAYER_RADIUS = 0.9;
+        const STAND_EYE_HEIGHT = 2.55;
+        const PRONE_EYE_HEIGHT = 0.72; // Khi nằm rạp xuống đất (Phím C)
+        const PLAYER_RADIUS = 0.85;
+
         const WALK_SPEED = 13.0;
-        const SPRINT_SPEED = 22.5;   // Nhanh hơn tốc độ đuổi của AI (16.5)
-        const CLIMB_SPEED = 11.0;
+        const SPRINT_SPEED = 22.8;   // Nhanh hơn tốc độ đuổi của AI (16.5)
+        const PRONE_CRAWL_SPEED = 5.4; // Bò êm khi nằm rạp
+        const CLIMB_SPEED = 11.2;
         const JUMP_FORCE = 14.5;
         const GRAVITY = 34.0;
 
         const GUARD_COUNT = 4;
-        const GUARD_PATROL_SPEED = 8.5;
+        const GUARD_PATROL_SPEED = 8.4;
         const GUARD_CHASE_SPEED = 16.5;
         const GUARD_CATCH_DIST = 2.6;
         const GUARD_CAMP_DIST = 10.0; // Lùi ra xa 10 mét khi bắt được
-        const CITATION_RATE = 7.2;    // Tốc độ chạy thanh biên bản (%/giây)
+        const CITATION_RATE = 6.8;    // Tốc độ chạy thanh biên bản (%/giây)
+        const SWARM_MEMORY_DURATION = 5.0; // Số giây cả đội vây bắt giữ dấu sau khi khuất tầm nhìn
 
         // ============================================================================
         // 2. BIẾN TOÀN CỤC & TRẠNG THÁI (STATE)
         // ============================================================================
         let scene, camera, renderer, clock;
-        let worldGroup; // Chứa toàn bộ công trình, sông, cá, cây cối để dễ reset map
+        let worldGroup;
+        let terrainMesh = null;
 
         // Danh sách thực thể va chạm và tương tác
-        let buildings = []; // { minX, maxX, minZ, maxZ, height, x, z, w, d }
-        let pineTrees = []; // { x, z, radius }
-        let guards = [];    // Danh sách 4 AI bảo vệ
-        let riverFishList = []; // Đàn cá 3D bơi dưới dòng sông
-        let waterSegments = []; // Các khối mặt nước sông để tạo sóng sánh
+        let wallColliders = [];     // Các bức tường nhà hoang (có thể leo hoặc chặn đường)
+        let platformColliders = []; // Sàn nhà, bậc cầu thang, mái hiên, sàn tầng 2
+        let hideZones = [];         // { x, y, z, radius, type: 'grass' | 'pine' | 'house' }
+        let abandonedHouses = [];   // Lưu tọa độ các nhà hoang để vẽ lên Mini-map
+        let guards = [];            // Danh sách 4 AI bảo vệ 3D chân thực
+        let riverFishList = [];     // Đàn cá 3D bơi dưới dòng sông
+        let waterMesh = null;
         let escapeBeaconMesh = null;
+        let terrainSeed = 1.0;
 
         // Cần câu trên tay (FPP), Phao câu 3D & Cần câu rơi dưới đất (World)
         let fppRodGroup = null;
-        let fppRodTipLocal = new THREE.Vector3(0.38, -0.05, -1.72);
+        let fppRodTipLocal = new THREE.Vector3(0.36, -0.02, -1.78);
         let fppFishMesh = null;
         let droppedRodGroup = null;
 
@@ -325,33 +364,38 @@
 
         // Trạng thái người chơi
         const player = {
-            pos: new THREE.Vector3(0, PLAYER_EYE_HEIGHT, 135), // Xuất phát ở miền Nam bản đồ
+            pos: new THREE.Vector3(0, 5, 135),
             vel: new THREE.Vector3(),
             yaw: 0,
             pitch: 0,
+            currentEyeHeight: STAND_EYE_HEIGHT,
+            isProne: false,           // Trạng thái Nằm Rạp (Phím C / Ctrl)
             onGround: true,
             isSprinting: false,
             isClimbing: false,
             isMovingHorizontally: false,
             hasRod: true,
-            hasCaughtFish: false,     // Đã câu được cá dưới sông hay chưa
+            hasCaughtFish: false,
             caughtFishColor: 0xf97316,
-            inBush: false,
+            inCoverType: null,        // null | 'grass' | 'pine' | 'house'
             isStealthHidden: false,
-            noiseExposedTimer: 0,     // Thời gian bị lộ vị trí do sột soạt trong bụi cây
+            noiseExposedTimer: 0,
             noiseCheckCooldown: 0,
-            rodPickupCooldown: 0      // Tránh vừa rơi cần đã nhặt lại ngay lập tức
+            rodPickupCooldown: 0
         };
 
-        // Trạng thái trận đấu
+        // Trạng thái trận đấu & Báo động vây bắt tập trung (Swarm Alert)
         const gameState = {
             isRunning: false,
             isGameOver: false,
-            citationProgress: 0,      // 0 -> 100%
+            citationProgress: 0,
             isBeingCited: false,
             rodDropPos: new THREE.Vector3(),
             citingGuard: null,
-            minimapCollapsed: false
+            minimapCollapsed: false,
+            swarmActive: false,
+            swarmLoseSightTimer: 0,
+            lastKnownPlayerPos: new THREE.Vector3()
         };
 
         // Điều khiển bàn phím
@@ -371,6 +415,8 @@
         const hud = document.getElementById('hud');
         const crosshair = document.getElementById('crosshair');
         const vignette = document.getElementById('vignette');
+        const rodWorldMarker = document.getElementById('rod-world-marker');
+        const rodMarkerDist = document.getElementById('rod-marker-dist');
         const btnPlay = document.getElementById('btn-play');
         const btnReset = document.getElementById('btn-reset');
         const resultBox = document.getElementById('result-box');
@@ -382,9 +428,12 @@
         const hudNorthDist = document.getElementById('hud-North-dist');
         const hudFishState = document.getElementById('hud-fish-state');
         const hudRodState = document.getElementById('hud-rod-state');
+        const hudPostureState = document.getElementById('hud-posture-state');
         const hudStealthState = document.getElementById('hud-stealth-state');
         const hudMoveState = document.getElementById('hud-move-state');
         const hudAiState = document.getElementById('hud-ai-state');
+        const swarmBanner = document.getElementById('swarm-banner');
+        const swarmLosText = document.getElementById('swarm-los-text');
         const citationPanel = document.getElementById('citation-panel');
         const citationPercent = document.getElementById('citation-percent');
         const citationBar = document.getElementById('citation-bar');
@@ -397,9 +446,11 @@
 
         let toastTimeout = null;
 
-        // Hàm tính tâm dòng sông uốn lượn theo tọa độ X
+        // ============================================================================
+        // 3. HÀM ĐỊA HÌNH ĐỒI NÚI GỒ GHỀ & DÒNG SÔNG CHÂN THỰC
+        // ============================================================================
         function getRiverCenterZ(x) {
-            return Math.sin(x * 0.022) * 14 + 18;
+            return Math.sin(x * 0.02 + terrainSeed) * 15 + 16;
         }
 
         function isPointInRiver(x, z, extraMargin = 0) {
@@ -409,7 +460,7 @@
 
         function isPointOnBridge(x, z) {
             const centerZ = getRiverCenterZ(x);
-            if (Math.abs(z - centerZ) > RIVER_HALF_WIDTH + 3) return false;
+            if (Math.abs(z - centerZ) > RIVER_HALF_WIDTH + 3.5) return false;
             for (const bx of BRIDGE_X_LIST) {
                 if (Math.abs(x - bx) <= BRIDGE_WIDTH / 2) {
                     return true;
@@ -418,15 +469,51 @@
             return false;
         }
 
+        // Tính độ cao mặt đất đồi núi gồ ghề tại tọa độ (x, z) bất kỳ
+        function getTerrainHeight(x, z) {
+            const riverZ = getRiverCenterZ(x);
+            const distRiver = Math.abs(z - riverZ);
+
+            // Kết hợp nhiều tần số sóng tạo đồi núi tự nhiên, thung lũng và sườn dốc
+            let h = Math.sin(x * 0.024 + terrainSeed) * Math.cos(z * 0.024 + terrainSeed) * 4.5
+                  + Math.sin(x * 0.06 - z * 0.045) * 2.1
+                  + Math.cos(x * 0.014 + z * 0.018) * 3.4;
+
+            // Làm phẳng dần khi tiến sát bờ sông và khoét lòng sông sâu xuống
+            if (distRiver < RIVER_HALF_WIDTH + 16) {
+                const t = Math.max(0, (distRiver - RIVER_HALF_WIDTH) / 16);
+                const smoothStep = t * t * (3 - 2 * t);
+                h *= smoothStep;
+                if (distRiver < RIVER_HALF_WIDTH) {
+                    const depthFactor = Math.cos((distRiver / RIVER_HALF_WIDTH) * (Math.PI / 2));
+                    h = -2.4 * depthFactor;
+                }
+            }
+
+            // Làm phẳng khu vực vạch đích phía Bắc để dễ nhìn cổng vàng
+            if (z < -175) {
+                const nt = Math.max(0, (z + 195) / 20);
+                h *= Math.min(1, nt);
+            }
+
+            // Làm phẳng nhẹ điểm xuất phát
+            const distSpawn = Math.hypot(x - 0, z - 135);
+            if (distSpawn < 18) {
+                h *= (distSpawn / 18);
+            }
+
+            return h;
+        }
+
         // ============================================================================
-        // 3. KHỞI TẠO THREE.JS & ÁNH SÁNG, MÔI TRƯỜNG
+        // 4. KHỞI TẠO THREE.JS & ÁNH SÁNG, BẦU TRỜI CHÂN THỰC
         // ============================================================================
         function initThreeJS() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.FogExp2(0x87ceeb, 0.0038);
+            scene.background = new THREE.Color(0x7dd3fc);
+            scene.fog = new THREE.FogExp2(0x7dd3fc, 0.0032);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 430);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 450);
             scene.add(camera);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -438,37 +525,37 @@
 
             clock = new THREE.Clock();
 
-            // Ánh sáng môi trường & Mặt trời tạo bóng khối Voxel
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.68);
-            scene.add(ambientLight);
+            // Ánh sáng bán cầu tự nhiên (Bầu trời xanh & Mặt đất cỏ ấm)
+            const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.65);
+            scene.add(hemiLight);
 
-            const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.85);
-            dirLight.position.set(120, 220, 100);
+            const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.9);
+            dirLight.position.set(130, 230, 110);
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.width = 2048;
             dirLight.shadow.mapSize.height = 2048;
             dirLight.shadow.camera.near = 10;
-            dirLight.shadow.camera.far = 500;
-            const d = 220;
+            dirLight.shadow.camera.far = 520;
+            const d = 225;
             dirLight.shadow.camera.left = -d;
             dirLight.shadow.camera.right = d;
             dirLight.shadow.camera.top = d;
             dirLight.shadow.camera.bottom = -d;
             scene.add(dirLight);
 
-            // Tạo mặt đất Voxel 400x400 cố định
-            createVoxelGround();
+            // Tạo ranh giới bản đồ & Vùng tẩu thoát phía Bắc
+            createWorldBordersAndEscapeZone();
 
-            // Tạo Cần Câu Góc Nhìn Thứ Nhất (FPP) gắn vào Camera
+            // Tạo Cần Câu 3D Góc Nhìn Thứ Nhất (FPP)
             createFPPRod();
 
             // Tạo Phao Câu 3D & Dây Cước 3D
             createFishingBobberAndLine();
 
-            // Tạo Mô hình Cần Câu Rơi Dưới Đất (Ẩn khi đang cầm)
+            // Tạo Mô hình Cần Câu Rơi Dưới Đất
             createDroppedRodMesh();
 
-            // Tạo nhóm thế giới động (sông, cá, tòa nhà, cây thông, bảo vệ)
+            // Nhóm thế giới động (địa hình đồi núi, sông, nhà hoang, cỏ, cây, bảo vệ)
             worldGroup = new THREE.Group();
             scene.add(worldGroup);
 
@@ -480,74 +567,49 @@
         }
 
         // ============================================================================
-        // 4. TẠO MẶT ĐẤT VOXEL 400x400 & VÙNG TẨU THOÁT PHÍA BẮC
+        // 5. RANH GIỚI BẢN ĐỒ & VÙNG TẨU THOÁT PHÍA BẮC
         // ============================================================================
-        function createVoxelGround() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#4d8c57';
-            ctx.fillRect(0, 0, 128, 128);
-            ctx.fillStyle = '#437c4c';
-            ctx.fillRect(0, 0, 64, 64);
-            ctx.fillRect(64, 64, 64, 64);
-
-            const groundTex = new THREE.CanvasTexture(canvas);
-            groundTex.magFilter = THREE.NearestFilter;
-            groundTex.minFilter = THREE.NearestFilter;
-            groundTex.wrapS = THREE.RepeatWrapping;
-            groundTex.wrapT = THREE.RepeatWrapping;
-            groundTex.repeat.set(100, 100);
-
-            const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE);
-            const groundMat = new THREE.MeshLambertMaterial({ map: groundTex });
-            const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-            groundMesh.rotation.x = -Math.PI / 2;
-            groundMesh.receiveShadow = true;
-            scene.add(groundMesh);
-
-            // Tường ranh giới bao quanh bản đồ 400x400
-            const borderMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+        function createWorldBordersAndEscapeZone() {
+            const borderMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
             const wallThickness = 4;
-            const wallHeight = 14;
+            const wallHeight = 22;
 
             const southWall = new THREE.Mesh(new THREE.BoxGeometry(WORLD_SIZE, wallHeight, wallThickness), borderMat);
-            southWall.position.set(0, wallHeight / 2, HALF_WORLD);
+            southWall.position.set(0, wallHeight / 2 - 4, HALF_WORLD);
             scene.add(southWall);
 
             const eastWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, WORLD_SIZE), borderMat);
-            eastWall.position.set(HALF_WORLD, wallHeight / 2, 0);
+            eastWall.position.set(HALF_WORLD, wallHeight / 2 - 4, 0);
             scene.add(eastWall);
 
             const westWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, WORLD_SIZE), borderMat);
-            westWall.position.set(-HALF_WORLD, wallHeight / 2, 0);
+            westWall.position.set(-HALF_WORLD, wallHeight / 2 - 4, 0);
             scene.add(westWall);
 
             // VÙNG TẨU THOÁT PHÍA BẮC (Z = -192 đến -200): Vạch sáng vàng khổng lồ
             const escapeGroup = new THREE.Group();
 
-            const padGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 0.4, 12);
+            const padGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 0.6, 12);
             const padMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
             const padMesh = new THREE.Mesh(padGeo, padMat);
             padMesh.position.set(0, 0.2, -194);
             escapeGroup.add(padMesh);
 
-            const beamGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 85, 2.5);
+            const beamGeo = new THREE.BoxGeometry(WORLD_SIZE - 4, 90, 2.5);
             const beamMat = new THREE.MeshBasicMaterial({
                 color: 0xfef08a,
                 transparent: true,
-                opacity: 0.55
+                opacity: 0.52
             });
             escapeBeaconMesh = new THREE.Mesh(beamGeo, beamMat);
-            escapeBeaconMesh.position.set(0, 42.5, -197);
+            escapeBeaconMesh.position.set(0, 45, -197);
             escapeGroup.add(escapeBeaconMesh);
 
-            const pillarGeo = new THREE.BoxGeometry(3, 28, 3);
-            const pillarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+            const pillarGeo = new THREE.CylinderGeometry(1.4, 1.8, 30, 16);
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xb45309, emissiveIntensity: 0.4 });
             for (let x = -180; x <= 180; x += 45) {
                 const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-                pillar.position.set(x, 14, -194);
+                pillar.position.set(x, 15, -194);
                 escapeGroup.add(pillar);
             }
 
@@ -555,57 +617,72 @@
         }
 
         // ============================================================================
-        // 5. CẦN CÂU GÓC NHÌN THỨ NHẤT (FPP), PHAO CÂU 3D & CẦN CÂU RƠI
+        // 6. CẦN CÂU 3D CHÂN THỰC (FPP), PHAO CÂU TRÒN & CẦN CÂU RƠI
         // ============================================================================
         function createFPPRod() {
             fppRodGroup = new THREE.Group();
 
-            // Thân cần câu Voxel
-            const rodGeo = new THREE.BoxGeometry(0.08, 0.08, 1.8);
-            const rodMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+            // Thân cần câu tròn thuôn nhỏ dần (CylinderGeometry mượt mà)
+            const rodGeo = new THREE.CylinderGeometry(0.012, 0.042, 1.95, 14);
+            rodGeo.rotateX(Math.PI / 2);
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.4 });
             const rodMesh = new THREE.Mesh(rodGeo, rodMat);
-            rodMesh.position.set(0.55, -0.42, -0.9);
-            rodMesh.rotation.x = 0.45;
-            rodMesh.rotation.y = -0.2;
+            rodMesh.position.set(0.52, -0.4, -0.92);
+            rodMesh.rotation.x = 0.42;
+            rodMesh.rotation.y = -0.18;
             fppRodGroup.add(rodMesh);
 
-            // Tay quay máy câu
-            const reelGeo = new THREE.BoxGeometry(0.14, 0.14, 0.18);
-            const reelMat = new THREE.MeshLambertMaterial({ color: 0x94a3b8 });
+            // Tay cầm bọc mút
+            const handleGeo = new THREE.CylinderGeometry(0.048, 0.048, 0.45, 14);
+            handleGeo.rotateX(Math.PI / 2);
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+            const handleMesh = new THREE.Mesh(handleGeo, handleMat);
+            handleMesh.position.set(0.62, -0.62, -0.35);
+            handleMesh.rotation.x = 0.42;
+            handleMesh.rotation.y = -0.18;
+            fppRodGroup.add(handleMesh);
+
+            // Máy câu tròn (Spinning Reel)
+            const reelGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.12, 16);
+            reelGeo.rotateZ(Math.PI / 2);
+            const reelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.3 });
             const reelMesh = new THREE.Mesh(reelGeo, reelMat);
-            reelMesh.position.set(0.5, -0.35, -0.45);
+            reelMesh.position.set(0.48, -0.36, -0.5);
             fppRodGroup.add(reelMesh);
 
             // Dây cước ngắn treo ở đầu cần
-            const lineGeo = new THREE.BoxGeometry(0.015, 0.55, 0.015);
+            const lineGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.55, 8);
             const lineMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
             const lineMesh = new THREE.Mesh(lineGeo, lineMat);
-            lineMesh.position.set(0.38, -0.3, -1.65);
+            lineMesh.position.set(0.36, -0.28, -1.72);
             fppRodGroup.add(lineMesh);
 
-            // Con cá Voxel đung đưa ở đầu dây (chỉ hiện sau khi đã câu được cá dưới sông)
+            // Con cá 3D chân thực (thân bầu dục thuôn mượt + vây đuôi rẻ quạt)
             fppFishMesh = new THREE.Group();
-            const bodyGeo = new THREE.BoxGeometry(0.22, 0.34, 0.14);
-            const bodyMat = new THREE.MeshLambertMaterial({ color: 0xf97316 });
-            bodyMat.name = 'fishBodyMat';
+            const bodyGeo = new THREE.SphereGeometry(0.14, 16, 12);
+            bodyGeo.scale(0.65, 1.55, 0.45);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.25, metalness: 0.1 });
             const body = new THREE.Mesh(bodyGeo, bodyMat);
             body.name = 'fishBody';
             fppFishMesh.add(body);
 
-            const tailGeo = new THREE.BoxGeometry(0.16, 0.18, 0.08);
-            const tailMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24 });
+            const tailGeo = new THREE.ConeGeometry(0.12, 0.22, 3);
+            tailGeo.scale(1, 1, 0.25);
+            const tailMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24 });
             const tail = new THREE.Mesh(tailGeo, tailMat);
             tail.position.set(0, -0.24, 0);
             fppFishMesh.add(tail);
 
-            const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.16);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
-            const eye = new THREE.Mesh(eyeGeo, eyeMat);
-            eye.position.set(0.04, 0.08, 0);
-            fppFishMesh.add(eye);
+            const eyeGeo = new THREE.SphereGeometry(0.025, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+            const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeL.position.set(0.055, 0.09, 0.03);
+            const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeR.position.set(0.055, 0.09, -0.03);
+            fppFishMesh.add(eyeL, eyeR);
 
-            fppFishMesh.position.set(0.38, -0.62, -1.65);
-            fppFishMesh.visible = false; // Khởi đầu chưa có cá, phải câu dưới sông
+            fppFishMesh.position.set(0.36, -0.6, -1.72);
+            fppFishMesh.visible = false;
             fppRodGroup.add(fppFishMesh);
 
             camera.add(fppRodGroup);
@@ -614,35 +691,33 @@
         function createFishingBobberAndLine() {
             bobberGroup = new THREE.Group();
 
-            // Phao đỏ - trắng kiểu Minecraft/Voxel
-            const topRed = new THREE.Mesh(
-                new THREE.BoxGeometry(0.45, 0.35, 0.45),
-                new THREE.MeshBasicMaterial({ color: 0xef4444 })
-            );
-            topRed.position.y = 0.25;
-            bobberGroup.add(topRed);
+            // Phao câu tròn đỏ-trắng chân thực
+            const sphereGeo = new THREE.SphereGeometry(0.26, 16, 16);
+            const sphereMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 });
+            const bobberSphere = new THREE.Mesh(sphereGeo, sphereMat);
+            bobberSphere.position.y = 0.12;
+            bobberGroup.add(bobberSphere);
 
-            const bottomWhite = new THREE.Mesh(
-                new THREE.BoxGeometry(0.45, 0.3, 0.45),
-                new THREE.MeshBasicMaterial({ color: 0xf8fafc })
-            );
-            bottomWhite.position.y = -0.05;
-            bobberGroup.add(bottomWhite);
+            const bottomCapGeo = new THREE.SphereGeometry(0.25, 16, 12);
+            bottomCapGeo.scale(1, 0.6, 1);
+            const bottomCapMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+            const bottomCap = new THREE.Mesh(bottomCapGeo, bottomCapMat);
+            bottomCap.position.y = -0.04;
+            bobberGroup.add(bottomCap);
 
-            const antenna = new THREE.Mesh(
-                new THREE.BoxGeometry(0.1, 0.45, 0.1),
-                new THREE.MeshBasicMaterial({ color: 0xfacc15 })
-            );
-            antenna.position.y = 0.6;
+            const antennaGeo = new THREE.CylinderGeometry(0.025, 0.035, 0.55, 10);
+            const antennaMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const antenna = new THREE.Mesh(antennaGeo, antennaMat);
+            antenna.position.y = 0.48;
             bobberGroup.add(antenna);
 
             // Vòng sóng nước tỏa ra khi cá cắn câu
-            const ringGeo = new THREE.RingGeometry(0.4, 1.35, 16);
+            const ringGeo = new THREE.RingGeometry(0.38, 1.4, 28);
             const ringMat = new THREE.MeshBasicMaterial({
                 color: 0xe0f2fe,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.75
+                opacity: 0.8
             });
             splashRingMesh = new THREE.Mesh(ringGeo, ringMat);
             splashRingMesh.rotation.x = -Math.PI / 2;
@@ -668,41 +743,47 @@
         function createDroppedRodMesh() {
             droppedRodGroup = new THREE.Group();
 
-            const ringGeo = new THREE.CylinderGeometry(1.6, 1.6, 0.15, 16);
+            // Vòng hào quang cảnh báo dưới đất
+            const ringGeo = new THREE.RingGeometry(1.1, 2.1, 32);
             const ringMat = new THREE.MeshBasicMaterial({
-                color: 0x22d3ee,
+                color: 0xf59e0b,
+                side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.55
+                opacity: 0.75
             });
             const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-            ringMesh.position.y = 0.08;
+            ringMesh.rotation.x = -Math.PI / 2;
+            ringMesh.position.y = 0.12;
             droppedRodGroup.add(ringMesh);
 
-            const beaconGeo = new THREE.CylinderGeometry(0.25, 0.25, 18, 8);
+            // Cột sáng cao giúp người chơi nhìn thấy từ xa qua đồi núi
+            const beaconGeo = new THREE.CylinderGeometry(0.32, 0.32, 28, 16);
             const beaconMat = new THREE.MeshBasicMaterial({
                 color: 0x38bdf8,
                 transparent: true,
-                opacity: 0.35
+                opacity: 0.38
             });
             const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
-            beaconMesh.position.y = 9;
+            beaconMesh.position.y = 14;
             droppedRodGroup.add(beaconMesh);
 
             const itemHolder = new THREE.Group();
             itemHolder.name = 'floatingRod';
 
             const rod = new THREE.Mesh(
-                new THREE.BoxGeometry(0.22, 0.22, 3.2),
-                new THREE.MeshLambertMaterial({ color: 0xd97706 })
+                new THREE.CylinderGeometry(0.04, 0.09, 3.2, 12),
+                new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 })
             );
-            rod.rotation.x = 0.5;
+            rod.rotation.z = 0.6;
             itemHolder.add(rod);
 
+            const fishGeo = new THREE.SphereGeometry(0.28, 14, 12);
+            fishGeo.scale(1.6, 0.7, 0.5);
             const fish = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.4, 0.9),
-                new THREE.MeshLambertMaterial({ color: 0xf97316 })
+                fishGeo,
+                new THREE.MeshStandardMaterial({ color: 0xf97316 })
             );
-            fish.position.set(0, 0.6, 0.8);
+            fish.position.set(0.6, 0.5, 0);
             itemHolder.add(fish);
 
             itemHolder.position.y = 1.6;
@@ -713,113 +794,155 @@
         }
 
         // ============================================================================
-        // 6. SINH BẢN ĐỒ NGẪU NHIÊN (DÒNG SÔNG 3D, CÁ BƠI, CẦU GỖ, TÒA NHÀ, CÂY THÔNG)
+        // 7. SINH ĐỊA HÌNH ĐỒI NÚI 3D, SÔNG, CÁ, CỎ CAO & NHÀ HOANG CÓ CẦU THANG
         // ============================================================================
-        function createRiverAndBridgesAndFish() {
-            waterSegments = [];
+        function createRealisticTerrainAndRiver() {
             riverFishList = [];
 
-            const sandMat = new THREE.MeshLambertMaterial({ color: 0xeab308 });
-            const waterMat = new THREE.MeshLambertMaterial({
-                color: 0x0284c7,
-                transparent: true,
-                opacity: 0.86
-            });
-            const rockMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+            // 1. Tạo lưới địa hình đồi núi 3D liên tục (140x140 phân đoạn, tô màu đỉnh theo độ cao)
+            const segs = 140;
+            const terrainGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, segs, segs);
+            terrainGeo.rotateX(-Math.PI / 2);
 
-            // 1. Tạo các lát cắt dòng sông Voxel uốn lượn từ Tây (-196) sang Đông (+196)
-            const segWidth = 8;
-            for (let x = -196; x <= 196; x += segWidth) {
-                const cz = getRiverCenterZ(x);
+            const posAttr = terrainGeo.attributes.position;
+            const colors = [];
+            const colorObj = new THREE.Color();
 
-                // Bờ cát hai bên sông
-                const sandMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(segWidth + 0.6, 0.22, RIVER_HALF_WIDTH * 2 + 6),
-                    sandMat
-                );
-                sandMesh.position.set(x, 0.06, cz);
-                sandMesh.receiveShadow = true;
-                worldGroup.add(sandMesh);
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vz = posAttr.getZ(i);
+                const vy = getTerrainHeight(vx, vz);
+                posAttr.setY(i, vy);
 
-                // Khối nước sông xanh biếc
-                const waterMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(segWidth + 0.3, 0.45, RIVER_HALF_WIDTH * 2),
-                    waterMat
-                );
-                waterMesh.position.set(x, 0.18, cz);
-                worldGroup.add(waterMesh);
-                waterSegments.push({ mesh: waterMesh, baseX: x });
-
-                // Đá tảng Voxel trang trí dọc bờ sông
-                if (Math.random() < 0.45) {
-                    const side = Math.random() < 0.5 ? -1 : 1;
-                    const rock = new THREE.Mesh(
-                        new THREE.BoxGeometry(1.8, 1.2, 1.8),
-                        rockMat
-                    );
-                    rock.position.set(
-                        x + (Math.random() - 0.5) * 3,
-                        0.6,
-                        cz + side * (RIVER_HALF_WIDTH + 1.8)
-                    );
-                    worldGroup.add(rock);
+                // Màu sắc tự nhiên theo độ cao: Cát lòng sông -> Cỏ xanh thung lũng -> Đồi đá cao
+                if (vy < -0.25) {
+                    colorObj.setHex(0xca8a04); // Cát sỏi lòng sông
+                } else if (vy < 0.45) {
+                    colorObj.setHex(0x4d7c0f); // Bờ cỏ ẩm
+                } else if (vy < 4.5) {
+                    colorObj.setHex(0x3f6212); // Thảm cỏ đồi
+                } else if (vy < 7.2) {
+                    colorObj.setHex(0x365314); // Sườn đồi cao
+                } else {
+                    colorObj.setHex(0x57534e); // Đỉnh núi đá xám nâu
                 }
+                colors.push(colorObj.r, colorObj.g, colorObj.b);
             }
 
-            // 2. Tạo 3 cây Cầu Gỗ Voxel bắc qua sông
-            const woodDeckMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
-            const woodPostMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
+            terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            terrainGeo.computeVertexNormals();
+
+            const terrainMat = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.92,
+                metalness: 0.02
+            });
+            terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.receiveShadow = true;
+            worldGroup.add(terrainMesh);
+
+            // 2. Tạo mặt nước dòng sông 3D mượt mà
+            const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, 90, 90, 20);
+            waterGeo.rotateX(-Math.PI / 2);
+            const wPos = waterGeo.attributes.position;
+            for (let i = 0; i < wPos.count; i++) {
+                const wx = wPos.getX(i);
+                const wzOffset = wPos.getZ(i);
+                wPos.setZ(i, getRiverCenterZ(wx) + wzOffset * 0.45);
+                wPos.setY(i, WATER_LEVEL_Y);
+            }
+            waterGeo.computeVertexNormals();
+
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x0284c7,
+                roughness: 0.18,
+                metalness: 0.35,
+                transparent: true,
+                opacity: 0.84
+            });
+            waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            worldGroup.add(waterMesh);
+
+            // 3. Tạo 3 cây Cầu Gỗ Bắc Qua Sông (Có trụ tròn và dốc lên xuống mượt)
+            const woodDeckMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+            const woodPostMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
 
             for (const bx of BRIDGE_X_LIST) {
                 const cz = getRiverCenterZ(bx);
                 const bridgeLen = RIVER_HALF_WIDTH * 2 + 8;
+                const deckY = 0.65;
 
-                // Mặt cầu gỗ
                 const deck = new THREE.Mesh(
-                    new THREE.BoxGeometry(BRIDGE_WIDTH, 0.55, bridgeLen),
+                    new THREE.BoxGeometry(BRIDGE_WIDTH, 0.4, bridgeLen),
                     woodDeckMat
                 );
-                deck.position.set(bx, 0.5, cz);
+                deck.position.set(bx, deckY, cz);
+                deck.castShadow = true;
                 deck.receiveShadow = true;
                 worldGroup.add(deck);
 
-                // Lan can gỗ 2 bên cầu
-                for (let zOff = -bridgeLen / 2 + 2; zOff <= bridgeLen / 2 - 2; zOff += 5) {
-                    const postL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5), woodPostMat);
-                    postL.position.set(bx - BRIDGE_WIDTH / 2 + 0.3, 1.5, cz + zOff);
+                // Thêm collider mặt cầu để người chơi và AI đi qua sông
+                platformColliders.push({
+                    minX: bx - BRIDGE_WIDTH / 2,
+                    maxX: bx + BRIDGE_WIDTH / 2,
+                    minZ: cz - bridgeLen / 2 - 2,
+                    maxZ: cz + bridgeLen / 2 + 2,
+                    y: deckY + 0.2
+                });
+
+                // Trụ cầu tròn & tay vịn dây thừng/gỗ tròn
+                for (let zOff = -bridgeLen / 2 + 2; zOff <= bridgeLen / 2 - 2; zOff += 5.5) {
+                    const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 3.6, 10), woodPostMat);
+                    postL.position.set(bx - BRIDGE_WIDTH / 2 + 0.35, 0.4, cz + zOff);
                     worldGroup.add(postL);
 
-                    const postR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5), woodPostMat);
-                    postR.position.set(bx + BRIDGE_WIDTH / 2 - 0.3, 1.5, cz + zOff);
+                    const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 3.6, 10), woodPostMat);
+                    postR.position.set(bx + BRIDGE_WIDTH / 2 - 0.35, 0.4, cz + zOff);
                     worldGroup.add(postR);
                 }
             }
 
-            // 3. Tạo 30 chú Cá 3D Voxel nhiều màu sắc bơi lội dưới dòng sông
+            // 4. Tạo 32 chú Cá 3D chân thực bơi lội dưới dòng sông
             const fishColors = [0xf97316, 0xfacc15, 0xf43f5e, 0x38bdf8, 0xa855f7];
-            for (let i = 0; i < 30; i++) {
+            for (let i = 0; i < 32; i++) {
                 const fx = (Math.random() - 0.5) * 350;
-                const fz = getRiverCenterZ(fx) + (Math.random() - 0.5) * (RIVER_HALF_WIDTH * 1.4);
+                const fz = getRiverCenterZ(fx) + (Math.random() - 0.5) * (RIVER_HALF_WIDTH * 1.35);
                 const color = fishColors[i % fishColors.length];
 
                 const fishGroup = new THREE.Group();
+
+                // Thân cá thuôn khí động học
+                const bodyGeo = new THREE.SphereGeometry(0.32, 14, 10);
+                bodyGeo.scale(0.55, 0.45, 1.75);
                 const body = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.55, 0.35, 1.1),
-                    new THREE.MeshLambertMaterial({ color })
+                    bodyGeo,
+                    new THREE.MeshStandardMaterial({ color, roughness: 0.25 })
                 );
                 fishGroup.add(body);
 
+                // Vây lưng
+                const dorsalGeo = new THREE.ConeGeometry(0.14, 0.32, 4);
+                dorsalGeo.scale(0.3, 1, 1.4);
+                const dorsal = new THREE.Mesh(dorsalGeo, new THREE.MeshStandardMaterial({ color: 0xfde047 }));
+                dorsal.position.set(0, 0.18, -0.05);
+                dorsal.rotation.x = -0.3;
+                fishGroup.add(dorsal);
+
+                // Đuôi vẫy mềm mại
                 const tailPivot = new THREE.Group();
-                tailPivot.position.set(0, 0, -0.55);
+                tailPivot.position.set(0, 0, -0.52);
+                const tailGeo = new THREE.ConeGeometry(0.24, 0.42, 3);
+                tailGeo.rotateX(Math.PI / 2);
+                tailGeo.scale(0.25, 1, 1);
                 const tail = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.18, 0.32, 0.45),
-                    new THREE.MeshLambertMaterial({ color: 0xfef08a })
+                    tailGeo,
+                    new THREE.MeshStandardMaterial({ color: 0xfef08a })
                 );
-                tail.position.z = -0.2;
+                tail.position.z = -0.18;
                 tailPivot.add(tail);
                 fishGroup.add(tailPivot);
 
-                fishGroup.position.set(fx, 0.32, fz);
+                fishGroup.position.set(fx, WATER_LEVEL_Y - 0.28, fz);
                 worldGroup.add(fishGroup);
 
                 riverFishList.push({
@@ -833,132 +956,401 @@
             }
         }
 
+        // ============================================================================
+        // 8. XÂY DỰNG NHÀ HOANG 2 TẦNG CÓ CẦU THANG & CHỖ NÚP TRONG NHÀ
+        // ============================================================================
+        function buildAbandonedHouse(cx, cz) {
+            const baseY = getTerrainHeight(cx, cz);
+            const W = 14; // Chiều rộng nhà hoang
+            const D = 14; // Chiều sâu nhà hoang
+            const H1 = 4.6; // Chiều cao tầng 1
+            const H2 = 3.8; // Chiều cao tường tầng 2
+            const wallThick = 0.6;
+
+            const houseGroup = new THREE.Group();
+            houseGroup.position.set(cx, baseY, cz);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 }); // Tường bê tông cũ rêu phong
+            const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
+            const plankMat = new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.9 });
+            const mossRoofMat = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.95 });
+
+            // 1. Móng đá & Sàn tầng 1 (kê sâu xuống đất để không bị hở trên sườn đồi)
+            const foundation = new THREE.Mesh(new THREE.BoxGeometry(W + 0.8, 5.0, D + 0.8), plankMat);
+            foundation.position.set(0, -2.35, 0);
+            foundation.receiveShadow = true;
+            houseGroup.add(foundation);
+
+            platformColliders.push({
+                minX: cx - W / 2 - 0.4,
+                maxX: cx + W / 2 + 0.4,
+                minZ: cz - D / 2 - 0.4,
+                maxZ: cz + D / 2 + 0.4,
+                y: baseY + 0.15
+            });
+
+            // Bậc tam cấp dẫn vào cửa chính ở mặt Nam (z = +D/2)
+            for (let s = 1; s <= 3; s++) {
+                const stepY = baseY - (3 - s) * 0.4;
+                platformColliders.push({
+                    minX: cx - 2.6,
+                    maxX: cx + 2.6,
+                    minZ: cz + D / 2 + (3 - s) * 0.8,
+                    maxZ: cz + D / 2 + (4 - s) * 0.8 + 0.4,
+                    y: stepY
+                });
+            }
+
+            // Hàm tiện ích thêm mảng tường vừa hiển thị 3D vừa làm Collider cản tầm nhìn & leo trèo
+            function addWallSegment(lx, ly, lz, sw, sh, sd, mat = wallMat, climbable = true) {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd), mat);
+                mesh.position.set(lx, ly + sh / 2, lz);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                houseGroup.add(mesh);
+
+                wallColliders.push({
+                    minX: cx + lx - sw / 2,
+                    maxX: cx + lx + sw / 2,
+                    minZ: cz + lz - sd / 2,
+                    maxZ: cz + lz + sd / 2,
+                    minY: baseY + ly,
+                    maxY: baseY + ly + sh,
+                    climbable
+                });
+            }
+
+            // 2. Tường bao quanh Nhà Hoang (Có cửa chính rộng 3.8m ở mặt Nam và các ô cửa sổ vỡ)
+            // Mặt Nam (Cửa ra vào ở giữa)
+            addWallSegment(-W / 2 + 2.5, 0, D / 2, 5.0, H1 + H2 * 0.6, wallThick);
+            addWallSegment(W / 2 - 2.5, 0, D / 2, 5.0, H1 + H2 * 0.6, wallThick);
+            // Đà ngang phía trên cửa ra vào
+            addWallSegment(0, 3.3, D / 2, 4.2, H1 + H2 * 0.6 - 3.3, wallThick);
+
+            // Mặt Bắc (Tường đổ nát có khe cửa sổ vỡ)
+            addWallSegment(-W / 2 + 2.8, 0, -D / 2, 5.6, H1 + H2, wallThick);
+            addWallSegment(W / 2 - 2.8, 0, -D / 2, 5.6, H1 + H2 * 0.7, wallThick);
+            addWallSegment(0, 0, -D / 2, 3.0, 1.5, wallThick); // Bệ cửa sổ thấp
+
+            // Mặt Đông (Tường nguyên để che hướng cầu thang)
+            addWallSegment(W / 2, 0, 0, wallThick, H1 + H2 * 0.8, D);
+
+            // Mặt Tây (Tường hoang tàn có lỗ thủng)
+            addWallSegment(-W / 2, 0, -2.5, wallThick, H1 + H2 * 0.75, D - 5);
+            addWallSegment(-W / 2, 0, D / 2 - 1.2, wallThick, H1, 2.4);
+
+            // 3. CẦU THANG BỘ ĐI LÊN TẦNG 2 (Dọc tường phía Đông, đi từ Nam lên Bắc)
+            const numSteps = 9;
+            const stepWidth = 2.8;
+            const stepDepth = 0.95;
+            const stepRise = H1 / numSteps;
+            const stairCenterX = W / 2 - 1.8;
+            const stairStartZ = 3.6;
+
+            for (let i = 0; i < numSteps; i++) {
+                const sy = (i + 1) * stepRise;
+                const sz = stairStartZ - i * stepDepth;
+
+                const stepMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(stepWidth, 0.28, stepDepth + 0.15),
+                    darkWoodMat
+                );
+                stepMesh.position.set(stairCenterX, sy - 0.14, sz);
+                stepMesh.castShadow = true;
+                stepMesh.receiveShadow = true;
+                houseGroup.add(stepMesh);
+
+                // Collider từng bậc cầu thang để người chơi và AI bước lên tự nhiên
+                platformColliders.push({
+                    minX: cx + stairCenterX - stepWidth / 2 - 0.2,
+                    maxX: cx + stairCenterX + stepWidth / 2 + 0.2,
+                    minZ: cz + sz - stepDepth / 2 - 0.15,
+                    maxZ: cz + sz + stepDepth / 2 + 0.15,
+                    y: baseY + sy
+                });
+            }
+
+            // 4. SÀN GÁC TẦNG 2 (Chừa ô cầu thang ở góc Đông-Nam)
+            // Phần sàn chính bên Tây & Bắc
+            const floor2MainW = W - 3.6;
+            const floor2Main = new THREE.Mesh(
+                new THREE.BoxGeometry(floor2MainW, 0.4, D - 0.6),
+                darkWoodMat
+            );
+            floor2Main.position.set(-1.6, H1 - 0.1, 0);
+            floor2Main.castShadow = true;
+            floor2Main.receiveShadow = true;
+            houseGroup.add(floor2Main);
+
+            platformColliders.push({
+                minX: cx - W / 2 + 0.2,
+                maxX: cx + W / 2 - 3.4,
+                minZ: cz - D / 2 + 0.2,
+                maxZ: cz + D / 2 - 0.2,
+                y: baseY + H1
+            });
+
+            // Chiếu nghỉ đỉnh cầu thang ở góc Đông-Bắc tầng 2
+            const landingMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(3.4, 0.4, 3.2),
+                darkWoodMat
+            );
+            landingMesh.position.set(W / 2 - 1.8, H1 - 0.1, -D / 2 + 1.8);
+            houseGroup.add(landingMesh);
+
+            platformColliders.push({
+                minX: cx + W / 2 - 3.5,
+                maxX: cx + W / 2 - 0.1,
+                minZ: cz - D / 2 + 0.2,
+                maxZ: cz - D / 2 + 3.5,
+                y: baseY + H1
+            });
+
+            // 5. GÓC NÚP TRONG NHÀ HOANG (Vách ngăn gỗ mục, thùng hàng cũ ở tầng 1 và tầng 2)
+            // Góc núp dưới gầm cầu thang / góc Tây Bắc tầng 1
+            addWallSegment(-W / 2 + 2.4, 0.15, -D / 2 + 3.2, 0.45, 2.5, 3.8, darkWoodMat, false);
+            const crate1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.6, 1.8), darkWoodMat);
+            crate1.position.set(-W / 2 + 1.6, 0.95, -D / 2 + 1.6);
+            houseGroup.add(crate1);
+
+            // Góc núp trên tầng 2 (Bức bình phong gỗ & thùng phuy rỉ sét trên gác)
+            addWallSegment(-W / 2 + 3.2, H1, -1.2, 3.6, 2.2, 0.45, darkWoodMat, false);
+
+            // Một phần mái nhà đổ nát che mưa nắng trên tầng 2
+            const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(W * 0.65, 0.45, D * 0.7), mossRoofMat);
+            roofSlab.position.set(-1.8, H1 + H2, -1.0);
+            roofSlab.rotation.z = 0.08;
+            roofSlab.castShadow = true;
+            houseGroup.add(roofSlab);
+
+            // Đăng ký các vùng ẩn nấp an toàn bên trong Nhà Hoang (Tầng 1 & Tầng 2)
+            hideZones.push({
+                x: cx - W / 2 + 2.2,
+                y: baseY,
+                z: cz - D / 2 + 2.2,
+                radius: 3.6,
+                type: 'house'
+            });
+            hideZones.push({
+                x: cx - 2.2,
+                y: baseY + H1,
+                z: cz - 1.5,
+                radius: 4.5,
+                type: 'house'
+            });
+
+            abandonedHouses.push({ x: cx, z: cz, w: W, d: D });
+            worldGroup.add(houseGroup);
+        }
+
+        // ============================================================================
+        // 9. TẠO THẢM CỎ CAO RẬM RẠP (INSTANCED MESH) & CÂY THÔNG RỪNG CHÂN THỰC
+        // ============================================================================
+        function createDenseGrassAndForest() {
+            // 1. Tạo 75 cụm Thảm Cỏ Cao Rậm Rạp (mỗi cụm 45-60 nhánh cỏ cao 1.3m để người chơi nằm trốn)
+            const grassPatchCenters = [];
+            for (let i = 0; i < 75; i++) {
+                const gx = (Math.random() - 0.5) * 355;
+                const gz = (Math.random() - 0.5) * 345;
+                if (gz < -180) continue;
+                if (isPointInRiver(gx, gz, 5)) continue;
+
+                // Tránh mọc xuyên sàn nhà hoang
+                let inHouse = false;
+                for (const h of abandonedHouses) {
+                    if (Math.abs(gx - h.x) < h.w / 2 + 3 && Math.abs(gz - h.z) < h.d / 2 + 3) {
+                        inHouse = true;
+                        break;
+                    }
+                }
+                if (inHouse) continue;
+
+                const gy = getTerrainHeight(gx, gz);
+                grassPatchCenters.push({ x: gx, y: gy, z: gz });
+
+                // Đăng ký vùng cỏ cao để khi người chơi nhấn C nằm rạp sẽ tàng hình
+                hideZones.push({
+                    x: gx,
+                    y: gy,
+                    z: gz,
+                    radius: 4.6,
+                    type: 'grass'
+                });
+            }
+
+            // Dùng InstancedMesh vẽ 3800 nhánh cỏ 3D hình lưỡi kiếm mượt mà không gây lag
+            const bladesPerPatch = 48;
+            const totalBlades = grassPatchCenters.length * bladesPerPatch;
+            const bladeGeo = new THREE.ConeGeometry(0.18, 1.55, 4);
+            bladeGeo.translate(0, 0.75, 0);
+            bladeGeo.scale(1, 1, 0.35);
+
+            const bladeMat = new THREE.MeshStandardMaterial({
+                color: 0x4d7c0f,
+                roughness: 0.8,
+                side: THREE.DoubleSide
+            });
+
+            const grassInstanced = new THREE.InstancedMesh(bladeGeo, bladeMat, totalBlades);
+            const dummy = new THREE.Object3D();
+            let idx = 0;
+
+            for (const patch of grassPatchCenters) {
+                for (let b = 0; b < bladesPerPatch; b++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.sqrt(Math.random()) * 4.2;
+                    const bx = patch.x + Math.cos(angle) * r;
+                    const bz = patch.z + Math.sin(angle) * r;
+                    const by = getTerrainHeight(bx, bz);
+
+                    dummy.position.set(bx, by - 0.08, bz);
+                    dummy.rotation.set(
+                        (Math.random() - 0.5) * 0.35,
+                        Math.random() * Math.PI * 2,
+                        (Math.random() - 0.5) * 0.35
+                    );
+                    const s = 0.85 + Math.random() * 0.55;
+                    dummy.scale.set(s, s, s);
+                    dummy.updateMatrix();
+                    grassInstanced.setMatrixAt(idx++, dummy.matrix);
+                }
+            }
+            grassInstanced.instanceMatrix.needsUpdate = true;
+            worldGroup.add(grassInstanced);
+
+            // 2. Tạo 75 Cây Thông Rừng 3D chân thực (Thân tròn + 3 tầng tán lá hình nón rậm rạp sát đất)
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.95 });
+            const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.85 });
+            const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.85 });
+
+            for (let i = 0; i < 75; i++) {
+                const tx = (Math.random() - 0.5) * 360;
+                const tz = (Math.random() - 0.5) * 350;
+                if (tz < -180) continue;
+                if (isPointInRiver(tx, tz, 6)) continue;
+
+                let nearHouse = false;
+                for (const h of abandonedHouses) {
+                    if (Math.abs(tx - h.x) < h.w / 2 + 4 && Math.abs(tz - h.z) < h.d / 2 + 4) {
+                        nearHouse = true;
+                        break;
+                    }
+                }
+                if (nearHouse) continue;
+
+                const ty = getTerrainHeight(tx, tz);
+                const treeGroup = new THREE.Group();
+                treeGroup.position.set(tx, ty, tz);
+
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 4.2, 10), trunkMat);
+                trunk.position.y = 2.0;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+
+                const cone1 = new THREE.Mesh(new THREE.ConeGeometry(3.4, 4.2, 12), foliageMat1);
+                cone1.position.y = 3.0;
+                cone1.castShadow = true;
+                treeGroup.add(cone1);
+
+                const cone2 = new THREE.Mesh(new THREE.ConeGeometry(2.6, 3.8, 12), foliageMat2);
+                cone2.position.y = 5.4;
+                cone2.castShadow = true;
+                treeGroup.add(cone2);
+
+                const cone3 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.2, 12), foliageMat1);
+                cone3.position.y = 7.6;
+                cone3.castShadow = true;
+                treeGroup.add(cone3);
+
+                worldGroup.add(treeGroup);
+
+                hideZones.push({
+                    x: tx,
+                    y: ty,
+                    z: tz,
+                    radius: 3.5,
+                    type: 'pine'
+                });
+            }
+
+            // 3. Tạo các tảng đá tự nhiên (Dodecahedron) trên các sườn đồi
+            const boulderMat = new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.92 });
+            for (let i = 0; i < 32; i++) {
+                const rx = (Math.random() - 0.5) * 350;
+                const rz = (Math.random() - 0.5) * 340;
+                if (isPointInRiver(rx, rz, 4)) continue;
+
+                let nearHouse = false;
+                for (const h of abandonedHouses) {
+                    if (Math.abs(rx - h.x) < h.w / 2 + 5 && Math.abs(rz - h.z) < h.d / 2 + 5) {
+                        nearHouse = true;
+                        break;
+                    }
+                }
+                if (nearHouse) continue;
+
+                const ry = getTerrainHeight(rx, rz);
+                const radius = 1.6 + Math.random() * 1.6;
+                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(radius, 1), boulderMat);
+                rock.position.set(rx, ry + radius * 0.45, rz);
+                rock.rotation.set(Math.random(), Math.random(), Math.random());
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                worldGroup.add(rock);
+            }
+        }
+
         function generateProceduralWorld() {
             while (worldGroup.children.length > 0) {
                 worldGroup.remove(worldGroup.children[0]);
             }
-            buildings = [];
-            pineTrees = [];
+            wallColliders = [];
+            platformColliders = [];
+            hideZones = [];
+            abandonedHouses = [];
             guards = [];
 
-            // Sinh dòng sông 3D, cầu gỗ và đàn cá bơi dưới sông
-            createRiverAndBridgesAndFish();
+            terrainSeed = Math.random() * 100;
 
-            // 1. Tạo 52 Tòa nhà xám Voxel ngẫu nhiên (không đè lên dòng sông & cầu gỗ)
-            const buildingColors = [0x64748b, 0x475569, 0x52525b, 0x71717a];
+            // 1. Sinh địa hình Đồi Núi gồ ghề, Dòng Sông 3D, Cầu Gỗ & Đàn Cá
+            createRealisticTerrainAndRiver();
 
-            for (let i = 0; i < 55; i++) {
-                const w = 10 + Math.floor(Math.random() * 14);
-                const d = 10 + Math.floor(Math.random() * 14);
-                const h = 8 + Math.floor(Math.random() * 20);
+            // 2. Xây dựng 8 ngôi Nhà Hoang 2 tầng có cầu thang nằm rải rác thưa thớt
+            const houseCandidateSpots = [
+                { x: -115, z: 95 },
+                { x: 110, z: 92 },
+                { x: -35, z: 75 },
+                { x: 65, z: 65 },
+                { x: -120, z: -45 },
+                { x: 0, z: -55 },
+                { x: 115, z: -60 },
+                { x: -45, z: -125 },
+                { x: 65, z: -130 }
+            ];
 
-                let x = (Math.random() - 0.5) * 340;
-                let z = (Math.random() - 0.5) * 330;
-
-                // Tránh vị trí xuất phát của người chơi và vùng đích Bắc
-                if (Math.hypot(x - 0, z - 135) < 24) continue;
-                if (z < -175) continue;
-
-                // Tránh xây tòa nhà đè lên dòng sông
-                if (isPointInRiver(x, z, Math.max(w, d) / 2 + 5)) continue;
-
-                let overlap = false;
-                for (const b of buildings) {
-                    if (Math.abs(x - b.x) < (w + b.w) / 2 + 4 && Math.abs(z - b.z) < (d + b.d) / 2 + 4) {
-                        overlap = true;
-                        break;
-                    }
-                }
-                if (overlap) continue;
-
-                const bColor = buildingColors[Math.floor(Math.random() * buildingColors.length)];
-                const bMat = new THREE.MeshLambertMaterial({ color: bColor });
-                const bGeo = new THREE.BoxGeometry(w, h, d);
-                const bMesh = new THREE.Mesh(bGeo, bMat);
-                bMesh.position.set(x, h / 2, z);
-                bMesh.castShadow = true;
-                bMesh.receiveShadow = true;
-                worldGroup.add(bMesh);
-
-                const roofGeo = new THREE.BoxGeometry(w + 0.6, 0.8, d + 0.6);
-                const roofMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
-                const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-                roofMesh.position.set(x, h - 0.2, z);
-                worldGroup.add(roofMesh);
-
-                buildings.push({
-                    x, z, w, d, height: h,
-                    minX: x - w / 2,
-                    maxX: x + w / 2,
-                    minZ: z - d / 2,
-                    maxZ: z + d / 2
-                });
+            for (const spot of houseCandidateSpots) {
+                const hx = spot.x + (Math.random() - 0.5) * 18;
+                const hz = spot.z + (Math.random() - 0.5) * 16;
+                if (isPointInRiver(hx, hz, 16)) continue;
+                buildAbandonedHouse(hx, hz);
             }
 
-            // 2. Tạo 95 Cây Thông Voxel (Bụi cây ẩn nấp)
-            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
-            const leafMat1 = new THREE.MeshLambertMaterial({ color: 0x15803d });
-            const leafMat2 = new THREE.MeshLambertMaterial({ color: 0x166534 });
+            // 3. Sinh Thảm Cỏ Cao Rậm Rạp & Cây Thông Rừng
+            createDenseGrassAndForest();
 
-            for (let i = 0; i < 95; i++) {
-                let x = (Math.random() - 0.5) * 360;
-                let z = (Math.random() - 0.5) * 350;
-
-                if (z < -180) continue;
-                if (isPointInRiver(x, z, 5)) continue;
-
-                let insideBuilding = false;
-                for (const b of buildings) {
-                    if (x > b.minX - 3.5 && x < b.maxX + 3.5 && z > b.minZ - 3.5 && z < b.maxZ + 3.5) {
-                        insideBuilding = true;
-                        break;
-                    }
-                }
-                if (insideBuilding) continue;
-
-                const treeGroup = new THREE.Group();
-                treeGroup.position.set(x, 0, z);
-
-                const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.4, 4.0, 1.4), trunkMat);
-                trunk.position.y = 2.0;
-                treeGroup.add(trunk);
-
-                const layer1 = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.2, 6.2), leafMat1);
-                layer1.position.y = 2.6;
-                layer1.castShadow = true;
-                treeGroup.add(layer1);
-
-                const layer2 = new THREE.Mesh(new THREE.BoxGeometry(4.6, 3.0, 4.6), leafMat2);
-                layer2.position.y = 5.2;
-                layer2.castShadow = true;
-                treeGroup.add(layer2);
-
-                const layer3 = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 2.6), leafMat1);
-                layer3.position.y = 7.5;
-                layer3.castShadow = true;
-                treeGroup.add(layer3);
-
-                worldGroup.add(treeGroup);
-
-                pineTrees.push({
-                    x, z,
-                    radius: 3.4
-                });
-            }
-
-            // 3. Khởi tạo 4 AI Bảo vệ thông minh (2 bảo vệ bờ Nam, 2 bảo vệ bờ Bắc)
+            // 4. Khởi tạo 4 AI Bảo vệ 3D chân thực
             const spawnCoords = [
-                { x: -55, z: 75 },
-                { x: 55, z: 70 },
-                { x: -45, z: -45 },
-                { x: 50, z: -55 }
+                { x: -60, z: 82 },
+                { x: 58, z: 78 },
+                { x: -50, z: -38 },
+                { x: 55, z: -48 }
             ];
 
             for (let i = 0; i < GUARD_COUNT; i++) {
-                let gx = spawnCoords[i].x + (Math.random() - 0.5) * 20;
-                let gz = spawnCoords[i].z + (Math.random() - 0.5) * 20;
+                let gx = spawnCoords[i].x + (Math.random() - 0.5) * 18;
+                let gz = spawnCoords[i].z + (Math.random() - 0.5) * 18;
                 const safePos = findSafeGroundPosition(gx, gz);
-                const guard = createGuardEntity(safePos.x, safePos.z, i);
+                const guard = createRealisticGuardEntity(safePos.x, safePos.z, i);
                 guards.push(guard);
                 worldGroup.add(guard.mesh);
             }
@@ -970,22 +1362,303 @@
             for (let attempt = 0; attempt < 25; attempt++) {
                 let blocked = isPointInRiver(testX, testZ, 2) && !isPointOnBridge(testX, testZ);
                 if (!blocked) {
-                    for (const b of buildings) {
-                        if (testX > b.minX - 2 && testX < b.maxX + 2 && testZ > b.minZ - 2 && testZ < b.maxZ + 2) {
+                    for (const h of abandonedHouses) {
+                        if (Math.abs(testX - h.x) < h.w / 2 + 2.5 && Math.abs(testZ - h.z) < h.d / 2 + 2.5) {
                             blocked = true;
                             break;
                         }
                     }
                 }
                 if (!blocked) return { x: testX, z: testZ };
-                testX += (Math.random() - 0.5) * 22;
-                testZ += (Math.random() - 0.5) * 22;
+                testX += (Math.random() - 0.5) * 24;
+                testZ += (Math.random() - 0.5) * 24;
             }
-            return { x: 0, z: 85 };
+            return { x: 0, z: 95 };
         }
 
         // ============================================================================
-        // 7. CƠ CHẾ CÂU CÁ 3D THẬT DƯỚI DÒNG SÔNG
+        // 10. MÔ HÌNH 4 AI BẢO VỆ 3D CHÂN THỰC (KHỚP TRÒN, ĐÈN PIN, NÓN, DÙI CUI)
+        // ============================================================================
+        function createRealisticGuardEntity(x, z, index) {
+            const group = new THREE.Group();
+            const gy = getTerrainHeight(x, z);
+            group.position.set(x, gy, z);
+
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xfed7aa, roughness: 0.6 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.7 });
+            const vestMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+            const bootMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.5 });
+            const badgeMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+
+            // Thân người (Torso + Áo giáp bảo vệ bo tròn)
+            const torsoGeo = new THREE.CylinderGeometry(0.46, 0.38, 1.45, 16);
+            const torso = new THREE.Mesh(torsoGeo, shirtMat);
+            torso.position.y = 2.05;
+            torso.castShadow = true;
+            group.add(torso);
+
+            const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.18, 16), bootMat);
+            belt.position.y = 1.4;
+            group.add(belt);
+
+            // Huy hiệu vàng trên ngực
+            const badge = new THREE.Mesh(new THREE.CircleGeometry(0.11, 12), badgeMat);
+            badge.position.set(0.2, 2.38, 0.43);
+            group.add(badge);
+
+            // Cổ & Đầu tròn chân thực (SphereGeometry)
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 3.18;
+
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.28, 12), skinMat);
+            neck.position.y = -0.32;
+            headGroup.add(neck);
+
+            const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 18), skinMat);
+            headSphere.scale.set(0.95, 1.08, 0.98);
+            headSphere.castShadow = true;
+            headGroup.add(headSphere);
+
+            // Mắt, chân mày & miệng
+            const eyeGeo = new THREE.SphereGeometry(0.055, 10, 10);
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.14, 0.06, 0.37);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.14, 0.06, 0.37);
+            headGroup.add(leftEye, rightEye);
+
+            const browGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.16, 8);
+            browGeo.rotateZ(Math.PI / 2);
+            const browL = new THREE.Mesh(browGeo, eyeMat);
+            browL.position.set(-0.14, 0.16, 0.39);
+            browL.rotation.z = -0.22;
+            const browR = new THREE.Mesh(browGeo, eyeMat);
+            browR.position.set(0.14, 0.16, 0.39);
+            browR.rotation.z = 0.22;
+            headGroup.add(browL, browR);
+
+            // Mũ Bảo Vệ 3D có vành cong
+            const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.42, 0.26, 18), vestMat);
+            capCrown.position.y = 0.34;
+            headGroup.add(capCrown);
+
+            const capVisor = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 16, 1, false, -Math.PI / 3, (2 * Math.PI) / 3), bootMat);
+            capVisor.position.set(0, 0.24, 0.18);
+            headGroup.add(capVisor);
+
+            group.add(headGroup);
+
+            // Tay Trái & Tay Phải (Hình trụ tròn có khớp vai, khuỷu tay và bàn tay)
+            function createArm(isRight) {
+                const pivot = new THREE.Group();
+                pivot.position.set(isRight ? 0.58 : -0.58, 2.65, 0);
+
+                const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 12), shirtMat);
+                pivot.add(shoulder);
+
+                const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.65, 12), shirtMat);
+                upperArm.position.y = -0.35;
+                pivot.add(upperArm);
+
+                const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.1, 0.58, 12), skinMat);
+                forearm.position.set(0, -0.88, 0.08);
+                forearm.rotation.x = -0.25;
+                pivot.add(forearm);
+
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), skinMat);
+                hand.position.set(0, -1.18, 0.16);
+                pivot.add(hand);
+
+                if (isRight) {
+                    // Dùi cui cảnh sát ở tay phải
+                    const baton = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.05, 0.06, 0.85, 10),
+                        bootMat
+                    );
+                    baton.rotation.x = Math.PI / 2;
+                    baton.position.set(0, -1.18, 0.5);
+                    pivot.add(baton);
+                }
+                return pivot;
+            }
+
+            const leftArmPivot = createArm(false);
+            const rightArmPivot = createArm(true);
+            group.add(leftArmPivot, rightArmPivot);
+
+            // Chân Trái & Chân Phải (Đùi, Bắp chân & Giày Boot tròn)
+            function createLeg(xOffset) {
+                const pivot = new THREE.Group();
+                pivot.position.set(xOffset, 1.32, 0);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.15, 0.68, 12), pantsMat);
+                thigh.position.y = -0.34;
+                pivot.add(thigh);
+
+                const calf = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.62, 12), pantsMat);
+                calf.position.y = -0.92;
+                pivot.add(calf);
+
+                const boot = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.18, 0.42), bootMat);
+                boot.position.set(0, -1.23, 0.08);
+                pivot.add(boot);
+
+                return pivot;
+            }
+
+            const leftLegPivot = createLeg(-0.22);
+            const rightLegPivot = createLeg(0.22);
+            group.add(leftLegPivot, rightLegPivot);
+
+            // Biểu tượng báo động đỏ nổi trên đầu khi vây bắt
+            const alertIcon = new THREE.Group();
+            const exclamBar = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.09, 0.06, 0.65, 10),
+                new THREE.MeshBasicMaterial({ color: 0xef4444 })
+            );
+            exclamBar.position.y = 0.25;
+            const exclamDot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.09, 10, 10),
+                new THREE.MeshBasicMaterial({ color: 0xef4444 })
+            );
+            exclamDot.position.y = -0.22;
+            alertIcon.add(exclamBar, exclamDot);
+            alertIcon.position.y = 4.35;
+            alertIcon.visible = false;
+            group.add(alertIcon);
+
+            return {
+                id: index,
+                mesh: group,
+                leftArmPivot,
+                rightArmPivot,
+                leftLegPivot,
+                rightLegPivot,
+                alertIcon,
+                state: 'PATROL', // 'PATROL' | 'SWARM_CHASE' | 'CAMP_ROD'
+                patrolTarget: new THREE.Vector3(
+                    (Math.random() - 0.5) * 280,
+                    0,
+                    (Math.random() - 0.5) * 280
+                ),
+                animPhase: Math.random() * Math.PI * 2,
+                campTargetPos: new THREE.Vector3(),
+                isClimbing: false
+            };
+        }
+
+        // ============================================================================
+        // 11. HỆ THỐNG VA CHẠM ĐỊA HÌNH ĐỒI NÚI, CẦU THANG NHÀ HOANG & LEO TƯỜNG
+        // ============================================================================
+        function resolveEntityWorldCollision(curX, curZ, newX, newZ, currentFeetY, radius, canStepUpStairs = true) {
+            let resolvedX = newX;
+            let resolvedZ = newZ;
+            let hitClimbableWall = false;
+
+            // Độ cao mặt đất đồi núi tại điểm đến
+            let supportHeight = getTerrainHeight(resolvedX, resolvedZ);
+
+            // Chặn không cho đi bộ xuống đáy sông sâu (trừ khi đi trên cầu gỗ)
+            if (isPointInRiver(resolvedX, resolvedZ, -0.6) && !isPointOnBridge(resolvedX, resolvedZ) && currentFeetY < 0.8) {
+                const centerZ = getRiverCenterZ(resolvedX);
+                if (curZ >= centerZ) {
+                    resolvedZ = Math.max(resolvedZ, centerZ + RIVER_HALF_WIDTH - 0.6);
+                } else {
+                    resolvedZ = Math.min(resolvedZ, centerZ - RIVER_HALF_WIDTH + 0.6);
+                }
+                supportHeight = getTerrainHeight(resolvedX, resolvedZ);
+            }
+
+            // Kiểm tra các mặt sàn Nhà Hoang, bậc cầu thang và Cầu Gỗ
+            for (const plat of platformColliders) {
+                if (resolvedX > plat.minX - radius * 0.6 && resolvedX < plat.maxX + radius * 0.6 &&
+                    resolvedZ > plat.minZ - radius * 0.6 && resolvedZ < plat.maxZ + radius * 0.6) {
+                    const maxStep = canStepUpStairs ? 1.15 : 0.7;
+                    if (currentFeetY + maxStep >= plat.y) {
+                        supportHeight = Math.max(supportHeight, plat.y);
+                    }
+                }
+            }
+
+            // Kiểm tra va chạm các bức tường Nhà Hoang
+            for (const w of wallColliders) {
+                const exMinX = w.minX - radius;
+                const exMaxX = w.maxX + radius;
+                const exMinZ = w.minZ - radius;
+                const exMaxZ = w.maxZ + radius;
+
+                if (resolvedX > exMinX && resolvedX < exMaxX &&
+                    resolvedZ > exMinZ && resolvedZ < exMaxZ) {
+
+                    // Nếu đang đứng trên đỉnh bức tường
+                    if (currentFeetY >= w.maxY - 0.55) {
+                        supportHeight = Math.max(supportHeight, w.maxY);
+                    } else if (currentFeetY + 2.1 > w.minY) {
+                        if (w.climbable) hitClimbableWall = true;
+
+                        const overlapLeft = resolvedX - exMinX;
+                        const overlapRight = exMaxX - resolvedX;
+                        const overlapTop = resolvedZ - exMinZ;
+                        const overlapBottom = exMaxZ - resolvedZ;
+
+                        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+                        if (minOverlap === overlapLeft) resolvedX = exMinX;
+                        else if (minOverlap === overlapRight) resolvedX = exMaxX;
+                        else if (minOverlap === overlapTop) resolvedZ = exMinZ;
+                        else if (minOverlap === overlapBottom) resolvedZ = exMaxZ;
+                    }
+                }
+            }
+
+            resolvedX = Math.max(-HALF_WORLD + 2.5, Math.min(HALF_WORLD - 2.5, resolvedX));
+            resolvedZ = Math.max(-HALF_WORLD + 2.5, Math.min(HALF_WORLD - 2.5, resolvedZ));
+
+            return {
+                x: resolvedX,
+                z: resolvedZ,
+                hitWallForClimb: hitClimbableWall,
+                groundHeight: supportHeight
+            };
+        }
+
+        // Kiểm tra Tầm Nhìn Thực Tế (Line-of-Sight - LOS) giữa Bảo vệ và Người chơi
+        // Bị chặn nếu có ngọn đồi cao hoặc bức tường Nhà Hoang chắn ở giữa!
+        function hasLineOfSight(gx, gy, gz, px, py, pz) {
+            const dx = px - gx;
+            const dy = py - gy;
+            const dz = pz - gz;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 90) return false;
+
+            const steps = Math.min(28, Math.max(6, Math.floor(dist / 2.2)));
+            for (let i = 1; i < steps; i++) {
+                const t = i / steps;
+                const sx = gx + dx * t;
+                const sy = gy + dy * t;
+                const sz = gz + dz * t;
+
+                // 1. Kiểm tra xem sườn đồi / đỉnh núi có chắn ngang tia nhìn không
+                const terrH = getTerrainHeight(sx, sz);
+                if (sy < terrH + 0.25) {
+                    return false;
+                }
+
+                // 2. Kiểm tra xem tường Nhà Hoang có chắn ngang tia nhìn không
+                for (const w of wallColliders) {
+                    if (sx >= w.minX && sx <= w.maxX &&
+                        sz >= w.minZ && sz <= w.maxZ &&
+                        sy >= w.minY && sy <= w.maxY) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // ============================================================================
+        // 12. CƠ CHẾ CÂU CÁ 3D THẬT DƯỚI DÒNG SÔNG
         // ============================================================================
         function isPlayerNearRiverForFishing() {
             const distToRiverCenter = Math.abs(player.pos.z - getRiverCenterZ(player.pos.x));
@@ -996,11 +1669,10 @@
             if (!gameState.isRunning || gameState.isGameOver) return;
 
             if (!player.hasRod) {
-                showToast('⚠️ Bạn đang bị rơi Cần Câu! Hãy lách qua bảo vệ để nhặt lại cần câu trước!', 'danger');
+                showToast('⚠️ ĐANG RƠI CẦN CÂU! Hãy nhìn theo nhãn vàng trên màn hình để thu hồi cần câu trước!', 'danger');
                 return;
             }
 
-            // Nếu đang quăng câu và cá đang đớp mồi -> Giật cá lên cần!
             if (fishing.state === 'BITING') {
                 fishing.state = 'IDLE';
                 bobberGroup.visible = false;
@@ -1010,7 +1682,6 @@
                 player.hasCaughtFish = true;
                 fppFishMesh.visible = true;
 
-                // Đổi màu cá trên đầu cần theo con cá vừa câu được
                 if (fishing.attractedFish) {
                     const bodyMesh = fppFishMesh.getObjectByName('fishBody');
                     if (bodyMesh) bodyMesh.material.color.setHex(fishing.attractedFish.color);
@@ -1020,14 +1691,12 @@
                 return;
             }
 
-            // Nếu đang quăng phao nhưng cá chưa cắn -> Thu hồi phao
             if (fishing.state === 'CASTED') {
                 cancelFishingCast();
                 showToast('🎣 Đã thu cần câu lại.', 'info');
                 return;
             }
 
-            // Nếu đang IDLE -> Kiểm tra xem có đứng gần sông để quăng phao không
             const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
             let castWaterPos = null;
 
@@ -1035,16 +1704,15 @@
                 const tx = player.pos.x + forward.x * dist;
                 const tz = player.pos.z + forward.z * dist;
                 if (isPointInRiver(tx, tz, -1.2)) {
-                    castWaterPos = new THREE.Vector3(tx, 0.35, tz);
+                    castWaterPos = new THREE.Vector3(tx, WATER_LEVEL_Y + 0.08, tz);
                     break;
                 }
             }
 
-            // Nếu người chơi đứng sát bờ sông nhưng nhìn hơi lệch, tự động quăng vào tâm sông trước mặt
             if (!castWaterPos && isPlayerNearRiverForFishing()) {
                 const tx = Math.max(-185, Math.min(185, player.pos.x + forward.x * 8));
                 const tz = getRiverCenterZ(tx) + (Math.random() - 0.5) * 6;
-                castWaterPos = new THREE.Vector3(tx, 0.35, tz);
+                castWaterPos = new THREE.Vector3(tx, WATER_LEVEL_Y + 0.08, tz);
             }
 
             if (!castWaterPos) {
@@ -1052,13 +1720,11 @@
                 return;
             }
 
-            // Quăng phao xuống sông!
             fishing.state = 'CASTED';
             fishing.bobberPos.copy(castWaterPos);
-            fishing.biteTimer = 2.0 + Math.random() * 2.2; // Đợi 2 - 4.2 giây cá sẽ bơi tới cắn câu
+            fishing.biteTimer = 2.0 + Math.random() * 2.0;
             fishing.biteWindow = 0;
 
-            // Chọn con cá gần phao nhất để bơi hút về phía phao
             let closestFish = null;
             let minDist = Infinity;
             for (const f of riverFishList) {
@@ -1089,23 +1755,20 @@
         function updateRiverAndFishing(dt) {
             const elapsed = clock.getElapsedTime();
 
-            // 1. Hiệu ứng mặt nước sông nhấp nhô
-            for (const seg of waterSegments) {
-                seg.mesh.position.y = 0.16 + Math.sin(elapsed * 2.4 + seg.baseX * 0.08) * 0.04;
+            if (waterMesh) {
+                waterMesh.position.y = Math.sin(elapsed * 2.2) * 0.05;
             }
 
-            // 2. Cập nhật 30 chú cá 3D bơi lội dưới dòng sông
             for (const fish of riverFishList) {
                 fish.swimPhase += dt * 12;
-                fish.tailPivot.rotation.y = Math.sin(fish.swimPhase) * 0.45;
+                fish.tailPivot.rotation.y = Math.sin(fish.swimPhase) * 0.48;
 
-                // Nếu con cá này đang bị thu hút bởi phao câu của người chơi
                 if ((fishing.state === 'CASTED' || fishing.state === 'BITING') && fishing.attractedFish === fish) {
                     const dx = fishing.bobberPos.x - fish.mesh.position.x;
                     const dz = fishing.bobberPos.z - fish.mesh.position.z;
                     const dist = Math.hypot(dx, dz);
                     if (dist > 0.7) {
-                        const moveStep = Math.min(dist, 9.5 * dt);
+                        const moveStep = Math.min(dist, 9.8 * dt);
                         fish.mesh.position.x += (dx / dist) * moveStep;
                         fish.mesh.position.z += (dz / dist) * moveStep;
                     }
@@ -1113,7 +1776,6 @@
                     continue;
                 }
 
-                // Cá bơi tự nhiên dọc theo lòng sông
                 fish.mesh.position.x += fish.dirX * fish.speed * dt;
                 if (fish.mesh.position.x > 185) fish.dirX = -1;
                 if (fish.mesh.position.x < -185) fish.dirX = 1;
@@ -1123,9 +1785,7 @@
                 fish.mesh.rotation.y = fish.dirX > 0 ? Math.PI / 2 : -Math.PI / 2;
             }
 
-            // 3. Cập nhật dây câu 3D & trạng thái phao câu
             if (fishing.state !== 'IDLE') {
-                // Nếu người chơi bỏ chạy quá xa khỏi phao (> 34m) hoặc làm rơi cần câu -> Tự thu phao
                 const distPlayerToBobber = Math.hypot(
                     player.pos.x - fishing.bobberPos.x,
                     player.pos.z - fishing.bobberPos.z
@@ -1135,7 +1795,6 @@
                     return;
                 }
 
-                // Cập nhật tọa độ 2 đầu dây cước nối từ đầu cần câu FPP tới phao dưới sông
                 const rodTipWorld = fppRodTipLocal.clone();
                 fppRodGroup.localToWorld(rodTipWorld);
 
@@ -1144,23 +1803,22 @@
                 positions[1] = rodTipWorld.y;
                 positions[2] = rodTipWorld.z;
                 positions[3] = bobberGroup.position.x;
-                positions[4] = bobberGroup.position.y + 0.45;
+                positions[4] = bobberGroup.position.y + 0.42;
                 positions[5] = bobberGroup.position.z;
                 fishingLineMesh.geometry.attributes.position.needsUpdate = true;
 
                 if (fishing.state === 'CASTED') {
-                    bobberGroup.position.y = 0.35 + Math.sin(elapsed * 4) * 0.06;
+                    bobberGroup.position.y = WATER_LEVEL_Y + 0.08 + Math.sin(elapsed * 4) * 0.05;
                     fishing.biteTimer -= dt;
 
                     if (fishing.biteTimer <= 0) {
                         fishing.state = 'BITING';
-                        fishing.biteWindow = 3.8; // Người chơi có 3.8 giây để giật cá
+                        fishing.biteWindow = 3.8;
                         splashRingMesh.visible = true;
                         showToast('💦 CÁ ĐỚP MỒI! Nhấn [Click Trái] hoặc [Phím F] ngay để giật cá lên!', 'success');
                     }
                 } else if (fishing.state === 'BITING') {
-                    // Phao chìm giật mạnh liên tục + sóng nước lan tỏa
-                    bobberGroup.position.y = 0.12 + Math.sin(elapsed * 24) * 0.22;
+                    bobberGroup.position.y = WATER_LEVEL_Y - 0.12 + Math.sin(elapsed * 24) * 0.2;
                     const pulseScale = 0.8 + ((elapsed * 3.2) % 1.4);
                     splashRingMesh.scale.set(pulseScale, pulseScale, 1);
 
@@ -1174,10 +1832,25 @@
         }
 
         // ============================================================================
-        // 9. CẬP NHẬT ĐIỀU KHIỂN NGƯỜI CHƠI, PARKOUR & NÚP LÙM CÂY THÔNG
+        // 13. CẬP NHẬT NGƯỜI CHƠI: NẰM RẠP (PRONE), PARKOUR, LEO CẦU THANG & NÚP CỎ
         // ============================================================================
+        function togglePronePosture() {
+            player.isProne = !player.isProne;
+            if (player.isProne) {
+                showToast('🌿 Đã Nằm Rạp xuống đất! Bò vào cỏ cao hoặc góc nhà hoang để tàng hình trước bảo vệ.', 'info');
+            }
+        }
+
         function updatePlayer(dt) {
-            const feetY = player.pos.y - PLAYER_EYE_HEIGHT;
+            // Nội suy chiều cao mắt mượt mà khi chuyển giữa Đứng (2.55m) và Nằm Rạp (0.72m)
+            const targetEyeH = player.isProne ? PRONE_EYE_HEIGHT : STAND_EYE_HEIGHT;
+            const prevEyeH = player.currentEyeHeight;
+            player.currentEyeHeight += (targetEyeH - player.currentEyeHeight) * Math.min(1, dt * 10);
+            if (player.onGround) {
+                player.pos.y += (player.currentEyeHeight - prevEyeH);
+            }
+
+            const feetY = player.pos.y - player.currentEyeHeight;
 
             const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
             const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
@@ -1191,22 +1864,30 @@
             player.isMovingHorizontally = moveDir.lengthSq() > 0.001;
             if (player.isMovingHorizontally) moveDir.normalize();
 
-            // Kiểm tra lội nước dưới sông (nếu không đứng trên cầu gỗ)
-            player.isInWater = isPointInRiverWater(player.pos.x, player.pos.z, -0.5) && !isPointOnWoodenBridge(player.pos.x, player.pos.z) && feetY < 0.8;
+            // Nếu đang Nằm Rạp mà bấm Shift để chạy nước rút -> Tự động đứng dậy chạy!
+            if (player.isProne && (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally) {
+                player.isProne = false;
+            }
 
-            player.isSprinting = (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally;
-            let currentSpeed = player.isSprinting ? SPRINT_SPEED : WALK_SPEED;
-            if (player.isInWater) currentSpeed *= 0.78; // Lội sông chậm hơn một chút so với chạy trên cầu gỗ
+            player.isSprinting = !player.isProne && (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally;
+            let currentSpeed = WALK_SPEED;
+            if (player.isProne) currentSpeed = PRONE_CRAWL_SPEED;
+            else if (player.isSprinting) currentSpeed = SPRINT_SPEED;
 
             const desiredX = player.pos.x + moveDir.x * currentSpeed * dt;
             const desiredZ = player.pos.z + moveDir.z * currentSpeed * dt;
 
-            const colResult = checkAndResolvePlayerBuildingCollision(desiredX, desiredZ, feetY);
+            const colResult = resolveEntityWorldCollision(
+                player.pos.x, player.pos.z,
+                desiredX, desiredZ,
+                feetY, PLAYER_RADIUS, true
+            );
             player.pos.x = colResult.x;
             player.pos.z = colResult.z;
 
-            // Cơ chế PARKOUR TỰ ĐỘNG BÁM TƯỜNG LÊN MÁI NHÀ khi đè W tiến vào tòa nhà
+            // Cơ chế PARKOUR TỰ ĐỘNG BÁM TƯỜNG khi đè W tiến sát tường Nhà Hoang
             if (colResult.hitWallForClimb && keys.KeyW) {
+                player.isProne = false;
                 player.isClimbing = true;
                 player.vel.y = CLIMB_SPEED;
                 player.onGround = false;
@@ -1219,8 +1900,12 @@
             }
 
             if (keys.Space && player.onGround && !player.isClimbing) {
-                player.vel.y = JUMP_FORCE;
-                player.onGround = false;
+                if (player.isProne) {
+                    player.isProne = false;
+                } else {
+                    player.vel.y = JUMP_FORCE;
+                    player.onGround = false;
+                }
             }
 
             if (!player.isClimbing) {
@@ -1229,402 +1914,7 @@
 
             player.pos.y += player.vel.y * dt;
 
-            // Nếu lội dưới lòng sông thì mặt đất thấp hơn một chút (-0.35m)
-            const riverDepthOffset = player.isInWater ? -0.35 : 0;
-            const supportY = colResult.groundHeight + riverDepthOffset + PLAYER_EYE_HEIGHT;
-            if (player.pos.y <= supportY) {
-                player.pos.y = supportY;
-                player.vel.y = 0;
-                player.onGround = true;
-            } else {
-                player.onGround = false;
-            }
-
-            camera.position.copy(player.pos);
-            camera.rotation.order = 'YXZ';
-            camera.rotation.y = player.yaw;
-            camera.rotation.x = player.pitch;
-
-            // Hiệu ứng đung đưa Cần Câu & Con Cá góc nhìn thứ nhất
-            if (fppRodGroup) {
-                fppRodGroup.visible = player.hasRod;
-                fppRodGroup.rotation.x += (0 - fppRodGroup.rotation.x) * 8 * dt;
-                if (player.hasRod) {
-                    const time = clock.getElapsedTime();
-                    const bobFreq = player.isSprinting ? 14 : (player.isMovingHorizontally ? 8 : 2);
-                    const bobAmp = player.isMovingHorizontally ? 0.035 : 0.008;
-                    fppRodGroup.position.y = Math.sin(time * bobFreq) * bobAmp;
-                    fppRodGroup.position.x = Math.cos(time * bobFreq * 0.5) * bobAmp;
-                    if (fppFishMesh && fppFishMesh.visible) {
-                        fppFishMesh.rotation.z = Math.sin(time * 6.0) * 0.32;
-                    }
-                }
-            }
-
-            // ------------------------------------------------------------------------
-            // HỆ THỐNG NÚP LÙM CÂY THÔNG CHÂN THỰC
-            // ------------------------------------------------------------------------
-            if (player.noiseExposedTimer > 0) {
-                player.noiseExposedTimer = Math.max(0, player.noiseExposedTimer - dt);
-            }
-            if (player.noiseCheckCooldown > 0) {
-                player.noiseCheckCooldown = Math.max(0, player.noiseCheckCooldown - dt);
-            }
-
-            let insidePine = false;
-            if (feetY < 3.5) {
-                for (const tree of pineTrees) {
-                    const distSq = (player.pos.x - tree.x) ** 2 + (player.pos.z - tree.z) ** 2;
-                    if (distSq <= tree.radius * tree.radius) {
-                        insidePine = true;
-                        break;
-                    }
-                }
-            }
-            player.inBush = insidePine;
-
-            if (player.inBush) {
-                if (player.isMovingHorizontally && player.noiseCheckCooldown <= 0) {
-                    player.noiseCheckCooldown = 0.45;
-                    const noiseChance = player.isSprinting ? 0.65 : 0.30;
-                    if (Math.random() < noiseChance) {
-                        player.noiseExposedTimer = 3.5;
-                        showToast('🔊 SỘT SOẠT! Bạn di chuyển trong cây thông và làm lộ vị trí (3.5s)!', 'danger');
-                    }
-                }
-                player.isStealthHidden = !player.isMovingHorizontally && player.noiseExposedTimer <= 0;
-            } else {
-                player.isStealthHidden = false;
-            }
-
-            // ------------------------------------------------------------------------
-            // KIỂM TRA NHẶT LẠI CẦN CÂU BỊ RƠI
-            // ------------------------------------------------------------------------
-            if (player.rodPickupCooldown > 0) {
-                player.rodPickupCooldown -= dt;
-            }
-
-            if (!player.hasRod && gameState.isBeingCited && player.rodPickupCooldown <= 0) {
-                const distToRod = Math.hypot(
-                    player.pos.x - gameState.rodDropPos.x,
-                    player.pos.z - gameState.rodDropPos.z
-                );
-                if (distToRod < 2.8 && feetY < 3.5) {
-                    player.hasRod = true;
-                    gameState.isBeingCited = false;
-                    droppedRodGroup.visible = false;
-                    citationPanel.classList.add('hidden');
-
-                    for (const g of guards) {
-                        if (g.state === 'CAMP_ROD') g.state = 'CHASE';
-                    }
-
-                    showToast('✅ ĐÃ NHẶT LẠI CẦN CÂU! Tiếp tục câu cá hoặc chạy về Vạch Vàng phía Bắc!', 'success');
-                }
-            }
-
-            // ------------------------------------------------------------------------
-            // KIỂM TRA ĐIỀU KIỆN THẮNG: MANG CẦN CÂU + ĐÃ CÂU ĐƯỢC CÁ CHẠM VẠCH VÀNG
-            // ------------------------------------------------------------------------
-            if (player.pos.z <= NORTH_ESCAPE_Z) {
-                if (!player.hasRod) {
-                    showToast('⚠️ Bạn chưa có Cần Câu! Hãy quay lại nhặt cần câu trước khi thoát!', 'danger');
-                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
-                } else if (fishing.caughtCount < TARGET_FISH_COUNT) {
-                    showToast('🎣 Bạn chưa câu con cá nào! Hãy ra Dòng Sông 3D giữa bản đồ nhấn Click / F để câu ít nhất 1 con cá!', 'info');
-                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
-                } else {
-                    triggerGameOver(true);
-                }
-            }
-        }
-
-        function findSafeGroundPosition(x, z) {
-            let testX = x;
-            let testZ = z;
-            for (let attempt = 0; attempt < 20; attempt++) {
-                let blocked = false;
-                for (const b of buildings) {
-                    if (testX > b.minX - 2 && testX < b.maxX + 2 && testZ > b.minZ - 2 && testZ < b.maxZ + 2) {
-                        blocked = true;
-                        break;
-                    }
-                }
-                if (!blocked) return { x: testX, z: testZ };
-                testX += (Math.random() - 0.5) * 20;
-                testZ += (Math.random() - 0.5) * 20;
-            }
-            return { x: 0, z: 80 };
-        }
-
-        // ============================================================================
-        // 7. MÔ HÌNH 4 AI BẢO VỆ VOXEL (ĐẦU, MẮT, MIỆNG, NÓN, TAY CHÂN VUNG VẨY)
-        // ============================================================================
-        function createGuardEntity(x, z, index) {
-            const group = new THREE.Group();
-            group.position.set(x, 0, z);
-
-            const skinMat = new THREE.MeshLambertMaterial({ color: 0xffedd5 });
-            const uniformMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a }); // Áo bảo vệ xanh đậm
-            const pantsMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
-            const hatMat = new THREE.MeshLambertMaterial({ color: 0x172554 });
-            const badgeMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
-            const angryMouthMat = new THREE.MeshBasicMaterial({ color: 0x991b1b });
-
-            // Thân (Torso)
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.6, 0.75), uniformMat);
-            torso.position.y = 2.1;
-            torso.castShadow = true;
-            group.add(torso);
-
-            // Huy hiệu vàng trước ngực
-            const badge = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.08), badgeMat);
-            badge.position.set(0.32, 2.45, 0.39);
-            group.add(badge);
-
-            // Đầu (Head)
-            const headGroup = new THREE.Group();
-            headGroup.position.y = 3.45;
-
-            const headCube = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.05, 1.05), skinMat);
-            headCube.castShadow = true;
-            headGroup.add(headCube);
-
-            // Hai mắt (Eyes)
-            const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.08), eyeMat);
-            leftEye.position.set(-0.24, 0.1, 0.53);
-            headGroup.add(leftEye);
-
-            const rightEye = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.08), eyeMat);
-            rightEye.position.set(0.24, 0.1, 0.53);
-            headGroup.add(rightEye);
-
-            // Chân mày dữ tợn
-            const browL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.09), eyeMat);
-            browL.position.set(-0.24, 0.26, 0.54);
-            browL.rotation.z = -0.2;
-            headGroup.add(browL);
-
-            const browR = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.09), eyeMat);
-            browR.position.set(0.24, 0.26, 0.54);
-            browR.rotation.z = 0.2;
-            headGroup.add(browR);
-
-            // Miệng (Mouth)
-            const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.08), angryMouthMat);
-            mouth.position.set(0, -0.24, 0.53);
-            headGroup.add(mouth);
-
-            // Mũ Bảo Vệ (Security Cap)
-            const capCrown = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.35, 1.15), hatMat);
-            capCrown.position.y = 0.62;
-            headGroup.add(capCrown);
-
-            const capVisor = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.45), hatMat);
-            capVisor.position.set(0, 0.48, 0.68);
-            headGroup.add(capVisor);
-
-            group.add(headGroup);
-
-            // Tay Trái & Tay Phải (Có khớp xoay ở vai để vung vẩy)
-            const leftArmPivot = new THREE.Group();
-            leftArmPivot.position.set(-0.9, 2.8, 0);
-            const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.45, 0.45), uniformMat);
-            leftArm.position.y = -0.6;
-            leftArmPivot.add(leftArm);
-            group.add(leftArmPivot);
-
-            const rightArmPivot = new THREE.Group();
-            rightArmPivot.position.set(0.9, 2.8, 0);
-            const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.45, 0.45), uniformMat);
-            rightArm.position.y = -0.6;
-            rightArmPivot.add(rightArm);
-
-            // Dùi cui / Sổ biên bản cầm ở tay phải
-            const baton = new THREE.Mesh(
-                new THREE.BoxGeometry(0.18, 0.18, 0.9),
-                new THREE.MeshLambertMaterial({ color: 0x111827 })
-            );
-            baton.position.set(0, -1.2, 0.35);
-            rightArmPivot.add(baton);
-            group.add(rightArmPivot);
-
-            // Chân Trái & Chân Phải (Có khớp xoay ở hông)
-            const leftLegPivot = new THREE.Group();
-            leftLegPivot.position.set(-0.34, 1.3, 0);
-            const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.3, 0.5), pantsMat);
-            leftLeg.position.y = -0.65;
-            leftLegPivot.add(leftLeg);
-            group.add(leftLegPivot);
-
-            const rightLegPivot = new THREE.Group();
-            rightLegPivot.position.set(0.34, 1.3, 0);
-            const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.3, 0.5), pantsMat);
-            rightLeg.position.y = -0.65;
-            rightLegPivot.add(rightLeg);
-            group.add(rightLegPivot);
-
-            // Dấu chấm than đỏ trên đầu khi phát hiện người chơi
-            const alertIcon = new THREE.Mesh(
-                new THREE.BoxGeometry(0.35, 0.9, 0.35),
-                new THREE.MeshBasicMaterial({ color: 0xef4444 })
-            );
-            alertIcon.position.y = 5.1;
-            alertIcon.visible = false;
-            group.add(alertIcon);
-
-            return {
-                id: index,
-                mesh: group,
-                leftArmPivot,
-                rightArmPivot,
-                leftLegPivot,
-                rightLegPivot,
-                alertIcon,
-                state: 'PATROL', // 'PATROL' | 'CHASE' | 'CAMP_ROD'
-                patrolTarget: new THREE.Vector3(
-                    (Math.random() - 0.5) * 280,
-                    0,
-                    (Math.random() - 0.5) * 280
-                ),
-                animPhase: Math.random() * Math.PI * 2,
-                campTargetPos: new THREE.Vector3()
-            };
-        }
-
-        // ============================================================================
-        // 8. HỆ THỐNG VA CHẠM TÒA NHÀ & PARKOUR TỰ ĐỘNG LEO TƯỜNG
-        // ============================================================================
-        function checkAndResolvePlayerBuildingCollision(newX, newZ, currentFeetY) {
-            let resolvedX = newX;
-            let resolvedZ = newZ;
-            let hitWallForClimb = false;
-            let highestSupportRoof = 0;
-
-            // Nếu đứng trên cầu gỗ thì mặt đất hỗ trợ cao hơn mặt nước một chút
-            if (isPointOnBridge(resolvedX, resolvedZ) && currentFeetY <= 1.2) {
-                highestSupportRoof = Math.max(highestSupportRoof, 0.55);
-            }
-
-            // Chặn người chơi không lội thẳng xuống giữa dòng sông sâu (trừ khi đi trên cầu gỗ)
-            if (isPointInRiver(resolvedX, resolvedZ, -0.5) && !isPointOnBridge(resolvedX, resolvedZ) && currentFeetY < 1.2) {
-                const centerZ = getRiverCenterZ(resolvedX);
-                if (player.pos.z >= centerZ) {
-                    resolvedZ = Math.max(resolvedZ, centerZ + RIVER_HALF_WIDTH - 0.5);
-                } else {
-                    resolvedZ = Math.min(resolvedZ, centerZ - RIVER_HALF_WIDTH + 0.5);
-                }
-            }
-
-            for (const b of buildings) {
-                const expandedMinX = b.minX - PLAYER_RADIUS;
-                const expandedMaxX = b.maxX + PLAYER_RADIUS;
-                const expandedMinZ = b.minZ - PLAYER_RADIUS;
-                const expandedMaxZ = b.maxZ + PLAYER_RADIUS;
-
-                if (resolvedX > expandedMinX && resolvedX < expandedMaxX &&
-                    resolvedZ > expandedMinZ && resolvedZ < expandedMaxZ) {
-
-                    if (currentFeetY >= b.height - 0.65) {
-                        highestSupportRoof = Math.max(highestSupportRoof, b.height);
-                    } else {
-                        hitWallForClimb = true;
-
-                        const overlapLeft = resolvedX - expandedMinX;
-                        const overlapRight = expandedMaxX - resolvedX;
-                        const overlapTop = resolvedZ - expandedMinZ;
-                        const overlapBottom = expandedMaxZ - resolvedZ;
-
-                        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-                        if (minOverlap === overlapLeft) resolvedX = expandedMinX;
-                        else if (minOverlap === overlapRight) resolvedX = expandedMaxX;
-                        else if (minOverlap === overlapTop) resolvedZ = expandedMinZ;
-                        else if (minOverlap === overlapBottom) resolvedZ = expandedMaxZ;
-                    }
-                }
-            }
-
-            resolvedX = Math.max(-HALF_WORLD + 2, Math.min(HALF_WORLD - 2, resolvedX));
-            resolvedZ = Math.max(-HALF_WORLD + 2, Math.min(HALF_WORLD - 2, resolvedZ));
-
-            return {
-                x: resolvedX,
-                z: resolvedZ,
-                hitWallForClimb,
-                groundHeight: highestSupportRoof
-            };
-        }
-
-        // Kiểm tra điểm (x, z) có va chạm tòa nhà hoặc lòng sông không (Dùng cho AI chống kẹt tường)
-        function isPointBlockedByBuilding(x, z, margin = 1.4) {
-            if (x < -HALF_WORLD + 3 || x > HALF_WORLD - 3 || z < -HALF_WORLD + 3 || z > HALF_WORLD - 3) {
-                return true;
-            }
-            if (isPointInRiver(x, z, -0.5) && !isPointOnBridge(x, z)) {
-                return true;
-            }
-            for (const b of buildings) {
-                if (x > b.minX - margin && x < b.maxX + margin &&
-                    z > b.minZ - margin && z < b.maxZ + margin) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // ============================================================================
-        // 9. CẬP NHẬT ĐIỀU KHIỂN NGƯỜI CHƠI, PARKOUR & NÚP LÙM CÂY THÔNG
-        // ============================================================================
-        function updatePlayer(dt) {
-            const feetY = player.pos.y - PLAYER_EYE_HEIGHT;
-
-            const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw)).normalize();
-            const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw)).normalize();
-
-            const moveDir = new THREE.Vector3();
-            if (keys.KeyW) moveDir.add(forward);
-            if (keys.KeyS) moveDir.sub(forward);
-            if (keys.KeyD) moveDir.add(right);
-            if (keys.KeyA) moveDir.sub(right);
-
-            player.isMovingHorizontally = moveDir.lengthSq() > 0.001;
-            if (player.isMovingHorizontally) moveDir.normalize();
-
-            player.isSprinting = (keys.ShiftLeft || keys.ShiftRight) && player.isMovingHorizontally;
-            const currentSpeed = player.isSprinting ? SPRINT_SPEED : WALK_SPEED;
-
-            const desiredX = player.pos.x + moveDir.x * currentSpeed * dt;
-            const desiredZ = player.pos.z + moveDir.z * currentSpeed * dt;
-
-            const colResult = checkAndResolvePlayerBuildingCollision(desiredX, desiredZ, feetY);
-            player.pos.x = colResult.x;
-            player.pos.z = colResult.z;
-
-            if (colResult.hitWallForClimb && keys.KeyW) {
-                player.isClimbing = true;
-                player.vel.y = CLIMB_SPEED;
-                player.onGround = false;
-            } else {
-                if (player.isClimbing && keys.KeyW) {
-                    player.pos.x += forward.x * 0.35;
-                    player.pos.z += forward.z * 0.35;
-                }
-                player.isClimbing = false;
-            }
-
-            if (keys.Space && player.onGround && !player.isClimbing) {
-                player.vel.y = JUMP_FORCE;
-                player.onGround = false;
-            }
-
-            if (!player.isClimbing) {
-                player.vel.y -= GRAVITY * dt;
-            }
-
-            player.pos.y += player.vel.y * dt;
-
-            const supportY = colResult.groundHeight + PLAYER_EYE_HEIGHT;
+            const supportY = colResult.groundHeight + player.currentEyeHeight;
             if (player.pos.y <= supportY) {
                 player.pos.y = supportY;
                 player.vel.y = 0;
@@ -1643,8 +1933,8 @@
                 fppFishMesh.visible = player.hasRod && player.hasCaughtFish;
                 if (player.hasRod) {
                     const time = clock.getElapsedTime();
-                    const bobFreq = player.isSprinting ? 14 : (player.isMovingHorizontally ? 8 : 2);
-                    const bobAmp = player.isMovingHorizontally ? 0.035 : 0.008;
+                    const bobFreq = player.isSprinting ? 14 : (player.isMovingHorizontally ? 7 : 2);
+                    const bobAmp = player.isMovingHorizontally ? 0.032 : 0.008;
                     fppRodGroup.position.y = Math.sin(time * bobFreq) * bobAmp;
                     fppRodGroup.position.x = Math.cos(time * bobFreq * 0.5) * bobAmp;
                     if (player.hasCaughtFish) {
@@ -1654,7 +1944,7 @@
             }
 
             // ------------------------------------------------------------------------
-            // HỆ THỐNG NÚP LÙM CÂY THÔNG CHÂN THỰC
+            // HỆ THỐNG ẨN NẤP CHÂN THỰC: NẰM TRONG CỎ CAO, CÂY THÔNG & NHÀ HOANG
             // ------------------------------------------------------------------------
             if (player.noiseExposedTimer > 0) {
                 player.noiseExposedTimer = Math.max(0, player.noiseExposedTimer - dt);
@@ -1663,34 +1953,49 @@
                 player.noiseCheckCooldown = Math.max(0, player.noiseCheckCooldown - dt);
             }
 
-            let insidePine = false;
-            if (feetY < 3.5) {
-                for (const tree of pineTrees) {
-                    const distSq = (player.pos.x - tree.x) ** 2 + (player.pos.z - tree.z) ** 2;
-                    if (distSq <= tree.radius * tree.radius) {
-                        insidePine = true;
-                        break;
-                    }
+            let foundCover = null;
+            for (const zone of hideZones) {
+                const distXZ = Math.hypot(player.pos.x - zone.x, player.pos.z - zone.z);
+                const diffY = Math.abs(feetY - zone.y);
+                if (distXZ <= zone.radius && diffY < 2.6) {
+                    foundCover = zone.type;
+                    break;
                 }
             }
-            player.inBush = insidePine;
+            player.inCoverType = foundCover;
 
-            if (player.inBush) {
-                if (player.isMovingHorizontally && player.noiseCheckCooldown <= 0) {
-                    player.noiseCheckCooldown = 0.45;
-                    const noiseChance = player.isSprinting ? 0.65 : 0.30;
+            if (foundCover) {
+                // Nếu chạy hoặc đi đứng trong bụi rậm sẽ dễ phát ra tiếng động làm lộ vị trí cho toàn đội bảo vệ
+                if (player.isMovingHorizontally && !player.isProne && player.noiseCheckCooldown <= 0) {
+                    player.noiseCheckCooldown = 0.5;
+                    const noiseChance = player.isSprinting ? 0.65 : 0.28;
                     if (Math.random() < noiseChance) {
-                        player.noiseExposedTimer = 3.5;
-                        showToast('🔊 SỘT SOẠT! Bạn di chuyển trong cây thông và làm lộ vị trí (3.5s)!', 'danger');
+                        player.noiseExposedTimer = 3.8;
+                        triggerSwarmAlert(player.pos, '🔊 SỘT SOẠT! Tiếng động làm lộ vị trí! Cả 4 bảo vệ đang ập tới vây bắt!');
                     }
                 }
-                player.isStealthHidden = !player.isMovingHorizontally && player.noiseExposedTimer <= 0;
+
+                // Điều kiện tàng hình:
+                // - Trong Cỏ Cao ('grass'): Bắt buộc phải Nằm Rạp (isProne) hoặc đứng hoàn toàn bất động
+                // - Trong Nhà Hoang ('house') hoặc Cây Thông ('pine'): Nằm rạp có thể bò êm mà vẫn tàng hình; đứng yên cũng tàng hình
+                if (player.noiseExposedTimer > 0) {
+                    player.isStealthHidden = false;
+                } else if (player.isProne) {
+                    player.isStealthHidden = true;
+                } else if (!player.isMovingHorizontally && foundCover !== 'grass') {
+                    player.isStealthHidden = true;
+                } else if (!player.isMovingHorizontally && foundCover === 'grass') {
+                    player.isStealthHidden = true;
+                } else {
+                    player.isStealthHidden = false;
+                }
             } else {
+                // Ngay cả khi nằm rạp ngoài đồng trống không có cỏ cao, tầm nhìn của bảo vệ cũng giảm đi một nửa
                 player.isStealthHidden = false;
             }
 
             // ------------------------------------------------------------------------
-            // KIỂM TRA NHẶT LẠI CẦN CÂU BỊ RƠI
+            // KIỂM TRA NHẶT LẠI CẦN CÂU BỊ RƠI (THU HỒI CẦN CÂU)
             // ------------------------------------------------------------------------
             if (player.rodPickupCooldown > 0) {
                 player.rodPickupCooldown -= dt;
@@ -1701,96 +2006,172 @@
                     player.pos.x - gameState.rodDropPos.x,
                     player.pos.z - gameState.rodDropPos.z
                 );
-                if (distToRod < 2.8 && feetY < 3.5) {
+                if (distToRod < 3.0 && Math.abs(feetY - gameState.rodDropPos.y) < 3.5) {
                     player.hasRod = true;
                     gameState.isBeingCited = false;
                     droppedRodGroup.visible = false;
                     citationPanel.classList.add('hidden');
+                    rodWorldMarker.classList.add('hidden');
 
-                    for (const g of guards) {
-                        if (g.state === 'CAMP_ROD') g.state = 'CHASE';
-                    }
-
-                    showToast('✅ ĐÃ NHẶT LẠI CẦN CÂU! Hãy câu cá hoặc chạy ngay về Vạch Sáng Vàng phía Bắc!', 'success');
+                    // Khi đoạt lại cần câu, cả đội bảo vệ lập tức vây bắt!
+                    triggerSwarmAlert(player.pos, '✅ ĐÃ THU HỒI CẦN CÂU! Hãy cắt tầm nhìn bảo vệ hoặc chạy về Vạch Vàng phía Bắc!');
                 }
             }
 
             // ------------------------------------------------------------------------
-            // KIỂM TRA ĐIỀU KIỆN THẮNG: MANG CẦN CÂU + ĐÃ CÂU CÁ CHẠM VẠCH VÀNG PHÍA BẮC
+            // KIỂM TRA ĐIỀU KIỆN THẮNG
             // ------------------------------------------------------------------------
             if (player.pos.z <= NORTH_ESCAPE_Z) {
-                if (player.hasRod && player.hasCaughtFish) {
+                if (!player.hasRod) {
+                    showToast('⚠️ ĐANG RƠI CẦN CÂU! Bạn phải quay lại thu hồi cần câu trước khi tẩu thoát!', 'danger');
+                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
+                } else if (!player.hasCaughtFish) {
+                    showToast('🐟 Bạn chưa câu cá! Hãy ra Dòng Sông 3D giữa bản đồ câu 1 chú cá quý trước!', 'info');
+                    player.pos.z = NORTH_ESCAPE_Z + 1.5;
+                } else {
                     triggerGameOver(true);
-                } else if (player.hasRod && !player.hasCaughtFish) {
-                    showToast('🐟 Bạn chưa câu trộm cá! Hãy quay lại Dòng Sông ở giữa bản đồ để câu 1 con cá trước!', 'info');
                 }
             }
         }
 
         // ============================================================================
-        // 10. CẬP NHẬT 4 AI BẢO VỆ THÔNG MINH (CHỐNG KẸT TƯỜNG & LẬP BIÊN BẢN)
+        // 14. HỆ THỐNG AI VÂY BẮT TẬP TRUNG (SWARM HUNTING), LEO TƯỜNG & KHUẤT TẦM NHÌN
         // ============================================================================
-        function updateGuards(dt) {
-            let anyChasing = false;
+        function triggerSwarmAlert(spottedPos, alertMsg = null) {
+            const wasActive = gameState.swarmActive;
+            gameState.swarmActive = true;
+            gameState.swarmLoseSightTimer = SWARM_MEMORY_DURATION;
+            gameState.lastKnownPlayerPos.copy(spottedPos);
 
-            // Di chuyển thông minh có tự động rẽ tránh góc tòa nhà (Anti-stuck steering)
-            function moveGuardSmart(guard, targetX, targetZ, speed) {
-                const gx = guard.mesh.position.x;
-                const gz = guard.mesh.position.z;
-                const baseAngle = Math.atan2(targetX - gx, targetZ - gz);
-
-                // Thử hướng thẳng trước, nếu vướng tường thì quét các góc lệch trái/phải
-                const candidateOffsets = [
-                    0,
-                    0.45, -0.45,
-                    0.9, -0.9,
-                    1.35, -1.35,
-                    1.8, -1.8,
-                    Math.PI
-                ];
-
-                let chosenAngle = baseAngle;
-                let foundPath = false;
-                const lookAheadDist = Math.max(2.2, speed * dt * 4.5);
-
-                for (const offset of candidateOffsets) {
-                    const testAngle = baseAngle + offset;
-                    const probeX = gx + Math.sin(testAngle) * lookAheadDist;
-                    const probeZ = gz + Math.cos(testAngle) * lookAheadDist;
-
-                    if (!isPointBlockedByBuilding(probeX, probeZ, 1.35)) {
-                        chosenAngle = testAngle;
-                        foundPath = true;
-                        break;
-                    }
+            for (const g of guards) {
+                if (g.state !== 'CAMP_ROD') {
+                    g.state = 'SWARM_CHASE';
                 }
-
-                if (foundPath) {
-                    const nextX = gx + Math.sin(chosenAngle) * speed * dt;
-                    const nextZ = gz + Math.cos(chosenAngle) * speed * dt;
-                    if (!isPointBlockedByBuilding(nextX, nextZ, 1.15)) {
-                        guard.mesh.position.x = nextX;
-                        guard.mesh.position.z = nextZ;
-                    }
-                }
-
-                // Xoay mặt nhân vật bảo vệ theo hướng di chuyển
-                guard.mesh.rotation.y = chosenAngle;
             }
 
+            if (!wasActive && alertMsg) {
+                showToast(alertMsg, 'danger');
+            }
+        }
+
+        function updateGuards(dt) {
+            let anyGuardCurrentlySeesPlayer = false;
+            const playerFeetY = player.pos.y - player.currentEyeHeight;
+
+            // 1. Kiểm tra xem có bất kỳ bảo vệ nào nhìn thấy hoặc phát hiện người chơi không
             for (const guard of guards) {
                 const gx = guard.mesh.position.x;
+                const gy = guard.mesh.position.y;
                 const gz = guard.mesh.position.z;
                 const distToPlayer = Math.hypot(player.pos.x - gx, player.pos.z - gz);
 
-                // Xác định AI có nhìn thấy hoặc nghe thấy người chơi không
-                const canDetectPlayer = !player.isStealthHidden && (
-                    distToPlayer < 85 || player.noiseExposedTimer > 0
+                // Tầm phát hiện phụ thuộc vào tư thế Đứng hay Nằm Rạp
+                const maxSightRange = player.isProne ? 38 : 78;
+
+                // Nếu bảo vệ dẫm sát người chơi (< 2.8m) thì dù núp cỏ cũng bị lộ!
+                const steppedOnPlayer = distToPlayer < 2.8 && Math.abs(playerFeetY - gy) < 2.2;
+
+                const canSee = hasLineOfSight(
+                    gx, gy + 3.1, gz,
+                    player.pos.x, player.pos.y - 0.15, player.pos.z
                 );
 
-                // --------------------------------------------------------------------
-                // TRẠNG THÁI 1: BẢO VỆ LÙI RA 10M ĐỨNG CANH CẦN CÂU & LẬP BIÊN BẢN
-                // --------------------------------------------------------------------
+                if (steppedOnPlayer || (player.noiseExposedTimer > 0 && distToPlayer < 95) || (!player.isStealthHidden && distToPlayer < maxSightRange && canSee)) {
+                    anyGuardCurrentlySeesPlayer = true;
+                    break;
+                }
+            }
+
+            // 2. Quản lý trạng thái Vây Bắt Tập Trung (Swarm State) của toàn đội 4 bảo vệ
+            if (anyGuardCurrentlySeesPlayer && player.hasRod) {
+                triggerSwarmAlert(
+                    player.pos,
+                    '🚨 LỘ VỊ TRÍ! Toàn bộ 4 bảo vệ đang tập trung vây bắt bạn!'
+                );
+            } else if (gameState.swarmActive) {
+                // Người chơi đã khuất tầm nhìn (sau đồi, trong nhà hoang hoặc nằm im trong cỏ cao)
+                gameState.swarmLoseSightTimer -= dt;
+                if (gameState.swarmLoseSightTimer <= 0) {
+                    gameState.swarmActive = false;
+                    for (const g of guards) {
+                        if (g.state === 'SWARM_CHASE') {
+                            g.state = 'PATROL';
+                            g.patrolTarget.set(
+                                g.mesh.position.x + (Math.random() - 0.5) * 65,
+                                0,
+                                g.mesh.position.z + (Math.random() - 0.5) * 65
+                            );
+                        }
+                    }
+                    showToast('🌲 Đã cắt đuôi thành công! Đội bảo vệ mất dấu và quay lại tuần tra.', 'success');
+                }
+            }
+
+            // Hàm di chuyển thông minh của Bảo vệ: Biết vây bắt theo góc (Flanking) và tự động LEO TƯỜNG / CẦU THANG
+            function moveGuardSmartAndClimb(guard, targetX, targetY, targetZ, speed) {
+                const gx = guard.mesh.position.x;
+                const gy = guard.mesh.position.y;
+                const gz = guard.mesh.position.z;
+
+                const baseAngle = Math.atan2(targetX - gx, targetZ - gz);
+                const dirX = Math.sin(baseAngle);
+                const dirZ = Math.cos(baseAngle);
+
+                const desiredX = gx + dirX * speed * dt;
+                const desiredZ = gz + dirZ * speed * dt;
+
+                const col = resolveEntityWorldCollision(gx, gz, desiredX, desiredZ, gy, 0.75, true);
+
+                // Nếu bảo vệ đang đuổi người chơi ở trên cao (tầng 2 nhà hoang / mái nhà) và chạm tường -> Bảo vệ TỰ LEO TƯỜNG LÊN!
+                if (col.hitWallForClimb && (targetY > gy + 1.2 || guard.state === 'SWARM_CHASE')) {
+                    guard.isClimbing = true;
+                    guard.mesh.position.y += CLIMB_SPEED * 0.92 * dt;
+                    guard.mesh.position.x += dirX * 2.2 * dt;
+                    guard.mesh.position.z += dirZ * 2.2 * dt;
+                    guard.mesh.rotation.y = baseAngle;
+                    return;
+                }
+
+                guard.isClimbing = false;
+
+                // Nếu bị kẹt tường mà mục tiêu ở dưới đất -> Quét góc rẽ tránh chướng ngại vật
+                if (Math.hypot(col.x - gx, col.z - gz) < speed * dt * 0.25) {
+                    const offsets = [0.6, -0.6, 1.15, -1.15, 1.65, -1.65];
+                    for (const off of offsets) {
+                        const testA = baseAngle + off;
+                        const tx = gx + Math.sin(testA) * speed * dt;
+                        const tz = gz + Math.cos(testA) * speed * dt;
+                        const altCol = resolveEntityWorldCollision(gx, gz, tx, tz, gy, 0.75, true);
+                        if (Math.hypot(altCol.x - gx, altCol.z - gz) > speed * dt * 0.45) {
+                            guard.mesh.position.x = altCol.x;
+                            guard.mesh.position.z = altCol.z;
+                            guard.mesh.position.y += (altCol.groundHeight - guard.mesh.position.y) * Math.min(1, dt * 12);
+                            guard.mesh.rotation.y = testA;
+                            return;
+                        }
+                    }
+                }
+
+                guard.mesh.position.x = col.x;
+                guard.mesh.position.z = col.z;
+                // Trọng lực & bám mặt đất đồi núi / bậc cầu thang mượt mà
+                if (guard.mesh.position.y > col.groundHeight + 0.1) {
+                    guard.mesh.position.y = Math.max(col.groundHeight, guard.mesh.position.y - 18 * dt);
+                } else {
+                    guard.mesh.position.y = col.groundHeight;
+                }
+                guard.mesh.rotation.y = baseAngle;
+            }
+
+            // 3. Cập nhật hành vi từng Bảo vệ
+            for (let i = 0; i < guards.length; i++) {
+                const guard = guards[i];
+                const gx = guard.mesh.position.x;
+                const gy = guard.mesh.position.y;
+                const gz = guard.mesh.position.z;
+                const distToPlayer = Math.hypot(player.pos.x - gx, player.pos.z - gz);
+
+                // TRẠNG THÁI 1: ĐỨNG CANH CẦN CÂU RƠI Ở CỰ LY 10M & LẬP BIÊN BẢN
                 if (guard.state === 'CAMP_ROD') {
                     guard.alertIcon.visible = true;
                     const distToCampSpot = Math.hypot(
@@ -1798,170 +2179,188 @@
                         guard.campTargetPos.z - gz
                     );
 
-                    if (distToCampSpot > 1.2) {
-                        // Lùi về vị trí cách cần câu 10 mét
-                        moveGuardSmart(guard, guard.campTargetPos.x, guard.campTargetPos.z, GUARD_CHASE_SPEED);
-                        animateGuardLimbs(guard, dt, 12);
+                    if (distToCampSpot > 1.3) {
+                        moveGuardSmartAndClimb(
+                            guard,
+                            guard.campTargetPos.x,
+                            getTerrainHeight(guard.campTargetPos.x, guard.campTargetPos.z),
+                            guard.campTargetPos.z,
+                            GUARD_CHASE_SPEED
+                        );
+                        animateGuardLimbs(guard, dt, 13);
                     } else {
-                        // Đứng nghiêm tại điểm 10m, quay mặt nhìn chằm chằm vào cần câu để ghi biên bản
                         const lookAngle = Math.atan2(
                             gameState.rodDropPos.x - gx,
                             gameState.rodDropPos.z - gz
                         );
                         guard.mesh.rotation.y = lookAngle;
+                        guard.mesh.position.y = getTerrainHeight(gx, gz);
 
-                        // Tư thế cầm sổ ghi chép biên bản
                         guard.leftLegPivot.rotation.x = 0;
                         guard.rightLegPivot.rotation.x = 0;
-                        guard.leftArmPivot.rotation.x = -0.6;
+                        guard.leftArmPivot.rotation.x = -0.55;
                         guard.rightArmPivot.rotation.x = -0.75 + Math.sin(clock.getElapsedTime() * 10) * 0.18;
                     }
                     continue;
                 }
 
-                // --------------------------------------------------------------------
-                // TRẠNG THÁI 2 & 3: TRUY ĐUỔI (CHASE) HOẶC TUẦN TRA (PATROL)
-                // --------------------------------------------------------------------
-                if (canDetectPlayer && player.hasRod) {
-                    guard.state = 'CHASE';
-                } else if (guard.state === 'CHASE' && !canDetectPlayer) {
-                    // Mất dấu khi người chơi núp vào cây thông thành công -> Chuyển về tuần tra
-                    guard.state = 'PATROL';
-                    guard.patrolTarget.set(
-                        guard.mesh.position.x + (Math.random() - 0.5) * 70,
-                        0,
-                        guard.mesh.position.z + (Math.random() - 0.5) * 70
-                    );
-                }
-
-                if (guard.state === 'CHASE') {
-                    anyChasing = true;
+                // TRẠNG THÁI 2: HỘI QUÂN VÂY BẮT TẬP TRUNG (SWARM_CHASE)
+                if (guard.state === 'SWARM_CHASE') {
                     guard.alertIcon.visible = true;
-                    moveGuardSmart(guard, player.pos.x, player.pos.z, GUARD_CHASE_SPEED);
-                    animateGuardLimbs(guard, dt, 15);
 
-                    // Kiểm tra bắt được người chơi (khi người chơi đang ở dưới đất và cầm cần câu)
-                    const verticalDiff = Math.abs((player.pos.y - PLAYER_EYE_HEIGHT) - 0);
-                    if (player.hasRod && distToPlayer <= GUARD_CATCH_DIST && verticalDiff < 2.6) {
+                    // 4 Bảo vệ chia góc vây bọc xung quanh vị trí của người chơi (Flanking)
+                    const flankRadius = distToPlayer > 12 ? 4.5 : 0;
+                    const flankAngle = (i * Math.PI) / 2;
+                    const targetX = gameState.lastKnownPlayerPos.x + Math.cos(flankAngle) * flankRadius;
+                    const targetZ = gameState.lastKnownPlayerPos.z + Math.sin(flankAngle) * flankRadius;
+                    const targetY = playerFeetY;
+
+                    moveGuardSmartAndClimb(guard, targetX, targetY, targetZ, GUARD_CHASE_SPEED);
+                    animateGuardLimbs(guard, dt, guard.isClimbing ? 20 : 15);
+
+                    // Kiểm tra tóm gọn người chơi
+                    const verticalDiff = Math.abs(playerFeetY - guard.mesh.position.y);
+                    if (player.hasRod && distToPlayer <= GUARD_CATCH_DIST && verticalDiff < 2.5) {
                         onPlayerCaughtByGuard(guard);
                     }
                 } else {
-                    // PATROL: Đi tuần tra quanh bản đồ
+                    // TRẠNG THÁI 3: TUẦN TRA (PATROL)
                     guard.alertIcon.visible = false;
                     const distToPatrol = Math.hypot(
                         guard.patrolTarget.x - gx,
                         guard.patrolTarget.z - gz
                     );
-                    if (distToPatrol < 4.0 || isPointBlockedByBuilding(guard.patrolTarget.x, guard.patrolTarget.z, 2)) {
+                    if (distToPatrol < 5.0 || isPointInRiver(guard.patrolTarget.x, guard.patrolTarget.z, 2)) {
                         guard.patrolTarget.set(
                             (Math.random() - 0.5) * 320,
                             0,
                             (Math.random() - 0.5) * 320
                         );
                     }
-                    moveGuardSmart(guard, guard.patrolTarget.x, guard.patrolTarget.z, GUARD_PATROL_SPEED);
+                    const py = getTerrainHeight(guard.patrolTarget.x, guard.patrolTarget.z);
+                    moveGuardSmartAndClimb(guard, guard.patrolTarget.x, py, guard.patrolTarget.z, GUARD_PATROL_SPEED);
                     animateGuardLimbs(guard, dt, 8);
                 }
             }
 
-            // ------------------------------------------------------------------------
-            // TIẾN ĐỘ LẬP BIÊN BẢN (0% -> 100%) KHI CẦN CÂU ĐANG RƠI DƯỚI ĐẤT
-            // ------------------------------------------------------------------------
+            // 4. Cập nhật thanh tiến độ Lập Biên Bản Thu Hồi Cần Câu (0% -> 100%)
             if (gameState.isBeingCited && !player.hasRod) {
                 gameState.citationProgress = Math.min(100, gameState.citationProgress + CITATION_RATE * dt);
                 const pct = Math.floor(gameState.citationProgress);
                 citationPercent.textContent = `${pct}%`;
-                citationBar.style.width = `${ gameState.citationProgress }%`;
+                citationBar.style.width = `${gameState.citationProgress}%`;
 
-                // Xoay hiệu ứng cần câu rơi dưới đất
                 const floatingItem = droppedRodGroup.getObjectByName('floatingRod');
                 if (floatingItem) {
-                    floatingItem.rotation.y += 2.5 * dt;
-                    floatingItem.position.y = 1.5 + Math.sin(clock.getElapsedTime() * 4) * 0.25;
+                    floatingItem.rotation.y += 2.6 * dt;
+                    floatingItem.position.y = 1.6 + Math.sin(clock.getElapsedTime() * 4) * 0.25;
                 }
 
                 if (gameState.citationProgress >= 100) {
                     triggerGameOver(false);
                 }
             }
+        }
 
-            // Cập nhật trạng thái AI trên HUD
-            if (gameState.isBeingCited) {
-                hudAiState.textContent = '📋 Đang canh cần câu & lập biên bản!';
-                hudAiState.className = 'font-bold text-rose-400 animate-pulse';
-            } else if (anyChasing) {
-                hudAiState.textContent = '🚨 Đang truy đuổi gắt gao!';
-                hudAiState.className = 'font-bold text-amber-400';
+        function animateGuardLimbs(guard, dt, speedMultiplier) {
+            guard.animPhase += dt * speedMultiplier;
+            const swing = Math.sin(guard.animPhase) * 0.78;
+            guard.leftLegPivot.rotation.x = swing;
+            guard.rightLegPivot.rotation.x = -swing;
+            if (guard.isClimbing) {
+                guard.leftArmPivot.rotation.x = -2.2 + swing * 0.6;
+                guard.rightArmPivot.rotation.x = -2.2 - swing * 0.6;
             } else {
-                hudAiState.textContent = '🔍 Đang tuần tra (4)';
-                hudAiState.className = 'font-bold text-emerald-400';
+                guard.leftArmPivot.rotation.x = -swing * 0.85;
+                guard.rightArmPivot.rotation.x = swing * 0.85;
             }
         }
 
-        // Hoạt ảnh tay chân vung vẩy ngược chiều nhau khi AI chạy
-        function animateGuardLimbs(guard, dt, speedMultiplier) {
-            guard.animPhase += dt * speedMultiplier;
-            const swing = Math.sin(guard.animPhase) * 0.75;
-            guard.leftLegPivot.rotation.x = swing;
-            guard.rightLegPivot.rotation.x = -swing;
-            guard.leftArmPivot.rotation.x = -swing * 0.85;
-            guard.rightArmPivot.rotation.x = swing * 0.85;
-        }
-
         // ============================================================================
-        // 11. XỬ LÝ KHI BỊ BẢO VỆ BẮT: RƠI CẦN CÂU & AI LÙI RA 10 MÉT LẬP BIÊN BẢN
+        // 15. XỬ LÝ KHI BỊ BẮT: BÁO RÕ ĐANG RƠI CẦN ĐỂ THU HỒI & AI LÙI RA 10M
         // ============================================================================
         function onPlayerCaughtByGuard(catchingGuard) {
             cancelFishingCast();
             player.hasRod = false;
-            player.rodPickupCooldown = 1.1; // Ngăn nhặt lại ngay trong tích tắc vừa rơi
+            player.rodPickupCooldown = 1.1;
             gameState.isBeingCited = true;
             gameState.citingGuard = catchingGuard;
+            gameState.swarmActive = false;
 
-            // Hiển thị cá trên cần câu bị rơi nếu người chơi đã câu được cá
-            if (droppedRodFishMesh) {
-                droppedRodFishMesh.visible = fishing.caughtCount > 0;
-            }
-
-            // Vị trí cần câu rơi ngay tại chỗ người chơi bị bắt
             const dropPos = findSafeGroundPosition(player.pos.x, player.pos.z);
-            gameState.rodDropPos.set(dropPos.x, 0, dropPos.z);
+            const dropY = getTerrainHeight(dropPos.x, dropPos.z);
+            gameState.rodDropPos.set(dropPos.x, dropY, dropPos.z);
 
             droppedRodGroup.position.copy(gameState.rodDropPos);
             droppedRodGroup.visible = true;
 
-            // Tính vị trí cách cần câu đúng 10 mét để bảo vệ lùi ra đứng canh
+            // Tìm vị trí cách cần câu đúng 10 mét để bảo vệ lùi ra đứng canh
             let campPosFound = false;
             for (let i = 0; i < 16; i++) {
                 const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
                 const tx = gameState.rodDropPos.x + Math.sin(angle) * GUARD_CAMP_DIST;
                 const tz = gameState.rodDropPos.z + Math.cos(angle) * GUARD_CAMP_DIST;
-                if (!isPointBlockedByBuilding(tx, tz, 1.8)) {
-                    catchingGuard.campTargetPos.set(tx, 0, tz);
+                if (!isPointInRiver(tx, tz, 2)) {
+                    catchingGuard.campTargetPos.set(tx, getTerrainHeight(tx, tz), tz);
                     campPosFound = true;
                     break;
                 }
             }
             if (!campPosFound) {
-                catchingGuard.campTargetPos.set(gameState.rodDropPos.x, 0, gameState.rodDropPos.z + GUARD_CAMP_DIST);
+                const tz = gameState.rodDropPos.z + GUARD_CAMP_DIST;
+                catchingGuard.campTargetPos.set(gameState.rodDropPos.x, getTerrainHeight(gameState.rodDropPos.x, tz), tz);
             }
 
             catchingGuard.state = 'CAMP_ROD';
 
-            // Các bảo vệ khác tản ra tuần tra xung quanh để người chơi có cơ hội lách góc khuất
+            // 3 bảo vệ còn lại tuần tra vòng ngoài để người chơi có thể lợi dụng nằm bò trong cỏ lách vào thu hồi cần
             for (const g of guards) {
                 if (g !== catchingGuard) {
                     g.state = 'PATROL';
                 }
             }
 
-            // Hiển thị thanh tiến độ lập biên bản trên UI
             citationPanel.classList.remove('hidden');
-            showToast('🚨 BỊ BẮT! Cần câu đã rơi! Bảo vệ lùi ra 10m lập biên bản, mau lách vào nhặt lại!', 'danger');
+            showToast('🚨 ĐANG RƠI CẦN CÂU! Bảo vệ lùi ra 10m lập biên bản, hãy nằm bò qua cỏ hoặc góc khuất để THU HỒI CẦN NGAY!', 'danger');
+        }
+
+        // Cập nhật nhãn 3D nổi trên màn hình chỉ dẫn thẳng tới chỗ Cần Câu đang bị rơi
+        function updateDroppedRodWorldMarker() {
+            if (player.hasRod || !gameState.isBeingCited) {
+                rodWorldMarker.classList.add('hidden');
+                return;
+            }
+
+            const markerWorldPos = gameState.rodDropPos.clone();
+            markerWorldPos.y += 2.6;
+
+            const dist = Math.round(player.pos.distanceTo(gameState.rodDropPos));
+            rodMarkerDist.textContent = `Cách ${dist}m`;
+
+            // Chiếu tọa độ 3D của Cần Câu sang tọa độ màn hình 2D
+            const projected = markerWorldPos.clone().project(camera);
+            const halfW = window.innerWidth / 2;
+            const halfH = window.innerHeight / 2;
+
+            let sx = projected.x * halfW + halfW;
+            let sy = -projected.y * halfH + halfH;
+
+            // Nếu Cần Câu ở phía sau lưng camera, ghim mũi tên cảnh báo vào mép màn hình
+            if (projected.z > 1) {
+                sx = window.innerWidth - sx;
+                sy = window.innerHeight - 70;
+            }
+
+            sx = Math.max(130, Math.min(window.innerWidth - 130, sx));
+            sy = Math.max(60, Math.min(window.innerHeight - 60, sy));
+
+            rodWorldMarker.style.left = `${sx}px`;
+            rodWorldMarker.style.top = `${sy}px`;
+            rodWorldMarker.classList.remove('hidden');
         }
 
         // ============================================================================
-        // 12. CẬP NHẬT GIAO DIỆN HUD & LA BÀN RADAR MINI (96x96PX)
+        // 16. CẬP NHẬT GIAO DIỆN HUD & MINI-MAP RADAR (96x96PX)
         // ============================================================================
         function updateHUD() {
             const distNorth = Math.max(0, Math.round(player.pos.z - NORTH_ESCAPE_Z));
@@ -1996,7 +2395,7 @@
                 fishingPrompt.classList.add('hidden');
             }
 
-            // Trạng thái cần câu
+            // Trạng thái cần câu (Báo rõ đang rơi cần để yêu cầu thu hồi)
             if (player.hasRod) {
                 hudRodState.innerHTML = '<span>🎣 Đang cầm Cần Câu</span>';
                 hudRodState.className = 'font-bold text-emerald-400';
@@ -2005,36 +2404,51 @@
                     player.pos.x - gameState.rodDropPos.x,
                     player.pos.z - gameState.rodDropPos.z
                 ));
-                hudRodState.innerHTML = `<span>⚠️ Rơi Cần (Cách ${distRod}m)</span>`;
-                hudRodState.className = 'font-bold text-amber-400 animate-pulse';
+                hudRodState.innerHTML = `<span>🚨 ĐANG RƠI CẦN! Thu hồi (${distRod}m)</span>`;
+                hudRodState.className = 'font-bold text-amber-300 animate-pulse';
             }
 
-            // Trạng thái Ẩn nấp cây thông
+            // Tư thế người chơi (Đứng vs Nằm Rạp C)
+            if (player.isProne) {
+                hudPostureState.textContent = '匍 Đang Nằm Rạp (Phím C)';
+                hudPostureState.className = 'font-bold text-emerald-300';
+            } else {
+                hudPostureState.textContent = '🧍 Đang đứng';
+                hudPostureState.className = 'font-bold text-sky-300';
+            }
+
+            // Trạng thái Ẩn nấp
             if (player.isStealthHidden) {
-                hudStealthState.textContent = '🌲 Tàng hình (Cây Thông)';
+                const coverLabel = player.inCoverType === 'house'
+                    ? '🏚️ Tàng hình (Nhà Hoang)'
+                    : (player.inCoverType === 'grass' ? '🌿 Tàng hình (Nằm Cỏ Cao)' : '🌲 Tàng hình (Bụi Thông)');
+                hudStealthState.textContent = coverLabel;
                 hudStealthState.className = 'font-bold text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/40';
                 vignette.className = 'fixed inset-0 z-10 stealth-vignette';
             } else if (player.noiseExposedTimer > 0) {
                 hudStealthState.textContent = `🔊 Lộ tiếng động (${player.noiseExposedTimer.toFixed(1)}s)`;
                 hudStealthState.className = 'font-bold text-rose-300 px-1.5 py-0.5 rounded bg-rose-950/90 border border-rose-500/40';
                 vignette.className = 'fixed inset-0 z-10 danger-vignette';
-            } else if (player.inBush) {
-                hudStealthState.textContent = '🌿 Đang động đậy';
-                hudStealthState.className = 'font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-950/80';
-                vignette.className = 'fixed inset-0 z-10';
+            } else if (player.isProne) {
+                hudStealthState.textContent = '匍 Nằm thấp (Giảm 50% bị nhìn thấy)';
+                hudStealthState.className = 'font-bold text-amber-200 px-1.5 py-0.5 rounded bg-slate-800';
+                vignette.className = 'fixed inset-0 z-10 prone-vignette';
             } else {
                 hudStealthState.textContent = '👀 Đang lộ diện';
                 hudStealthState.className = 'font-bold text-slate-200 px-1.5 py-0.5 rounded bg-slate-800';
-                vignette.className = gameState.isBeingCited ? 'fixed inset-0 z-10 danger-vignette' : 'fixed inset-0 z-10';
+                vignette.className = (gameState.isBeingCited || gameState.swarmActive) ? 'fixed inset-0 z-10 danger-vignette' : 'fixed inset-0 z-10';
             }
 
             // Trạng thái vận động
             if (player.isClimbing) {
-                hudMoveState.textContent = '🧗 Parkour leo tường!';
+                hudMoveState.textContent = '🧗 Đang bám leo tường!';
                 hudMoveState.className = 'font-bold text-amber-400';
             } else if (!player.onGround) {
                 hudMoveState.textContent = '🦘 Đang nhảy';
                 hudMoveState.className = 'font-bold text-purple-400';
+            } else if (player.isProne && player.isMovingHorizontally) {
+                hudMoveState.textContent = '🐍 Đang bò trườn êm';
+                hudMoveState.className = 'font-bold text-emerald-400';
             } else if (player.isSprinting) {
                 hudMoveState.textContent = '⚡ Chạy nước rút';
                 hudMoveState.className = 'font-bold text-emerald-400';
@@ -2045,6 +2459,24 @@
                 hudMoveState.textContent = '🧍 Đứng yên';
                 hudMoveState.className = 'font-bold text-slate-400';
             }
+
+            // Trạng thái Đội Bảo Vệ & Banner Vây Bắt
+            if (gameState.isBeingCited) {
+                swarmBanner.classList.add('hidden');
+                hudAiState.textContent = '📋 Đang canh thu hồi cần (10m)';
+                hudAiState.className = 'font-bold text-rose-400 animate-pulse';
+            } else if (gameState.swarmActive) {
+                swarmBanner.classList.remove('hidden');
+                swarmLosText.innerHTML = `Cắt tầm nhìn (LOS) sau đồi, trong Nhà Hoang hoặc nằm cỏ thêm <b class="text-white">${gameState.swarmLoseSightTimer.toFixed(1)}s</b> để thoát vây bắt!`;
+                hudAiState.textContent = `🚨 Vây bắt cả đội (${gameState.swarmLoseSightTimer.toFixed(1)}s)`;
+                hudAiState.className = 'font-bold text-rose-400 animate-pulse';
+            } else {
+                swarmBanner.classList.add('hidden');
+                hudAiState.textContent = '🔍 Đang tuần tra (4)';
+                hudAiState.className = 'font-bold text-emerald-400';
+            }
+
+            updateDroppedRodWorldMarker();
 
             if (!gameState.minimapCollapsed) {
                 drawMiniRadar();
@@ -2074,7 +2506,7 @@
             radarCtx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
             radarCtx.stroke();
 
-            const scale = 0.30; // Tỉ lệ mét -> pixel gọn trong vòng 96x96
+            const scale = 0.30;
 
             function worldToRadar(wx, wz) {
                 const dx = wx - player.pos.x;
@@ -2105,25 +2537,16 @@
             }
             radarCtx.stroke();
 
-            // Vẽ các chấm Cá cam dưới sông
-            radarCtx.fillStyle = '#fb923c';
-            for (const f of riverFishList) {
-                const fp = worldToRadar(f.mesh.position.x, f.mesh.position.z);
-                if (Math.hypot(fp.x - cx, fp.y - cy) < radius - 3) {
-                    radarCtx.fillRect(fp.x - 1, fp.y - 1, 2.2, 2.2);
+            // Vẽ các ngôi Nhà Hoang trên Radar
+            radarCtx.fillStyle = '#a8a29e';
+            for (const house of abandonedHouses) {
+                const hp = worldToRadar(house.x, house.z);
+                if (Math.hypot(hp.x - cx, hp.y - cy) < radius - 2) {
+                    radarCtx.fillRect(hp.x - 2.5, hp.y - 2.5, 5, 5);
                 }
             }
 
-            // Vẽ các tòa nhà gần đó trên radar
-            radarCtx.fillStyle = 'rgba(100, 116, 139, 0.45)';
-            for (const b of buildings) {
-                if (Math.hypot(b.x - player.pos.x, b.z - player.pos.z) < 140) {
-                    const p = worldToRadar(b.x, b.z);
-                    radarCtx.fillRect(p.x - 2, p.y - 2, 4, 4);
-                }
-            }
-
-            // Vẽ hướng Vùng Tẩu Thoát Phía Bắc (Điểm sáng vàng trên viền radar)
+            // Vẽ hướng Vùng Tẩu Thoát Phía Bắc
             const northPoint = worldToRadar(player.pos.x, NORTH_ESCAPE_Z);
             const angleToNorth = Math.atan2(northPoint.y - cy, northPoint.x - cx);
             const bx = cx + Math.cos(angleToNorth) * (radius - 4);
@@ -2140,7 +2563,7 @@
                 const ry = Math.max(6, Math.min(h - 6, rodPt.y));
                 radarCtx.fillStyle = '#22d3ee';
                 radarCtx.beginPath();
-                radarCtx.arc(rx, ry, 3.8, 0, Math.PI * 2);
+                radarCtx.arc(rx, ry, 4.2, 0, Math.PI * 2);
                 radarCtx.fill();
             }
 
@@ -2149,9 +2572,9 @@
                 const gp = worldToRadar(g.mesh.position.x, g.mesh.position.z);
                 const gx = Math.max(6, Math.min(w - 6, gp.x));
                 const gy = Math.max(6, Math.min(h - 6, gp.y));
-                radarCtx.fillStyle = '#ef4444';
+                radarCtx.fillStyle = g.state === 'SWARM_CHASE' ? '#f97316' : '#ef4444';
                 radarCtx.beginPath();
-                radarCtx.arc(gx, gy, 3.2, 0, Math.PI * 2);
+                radarCtx.arc(gx, gy, 3.3, 0, Math.PI * 2);
                 radarCtx.fill();
             }
 
@@ -2173,20 +2596,20 @@
             toastAlert.classList.remove('hidden');
 
             if (type === 'danger') {
-                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base shadow-2xl border-2 bg-rose-950/90 border-rose-500 text-rose-200';
+                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-2xl border-2 bg-rose-950/95 border-rose-500 text-rose-200';
             } else if (type === 'success') {
-                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base shadow-2xl border-2 bg-emerald-950/90 border-emerald-400 text-emerald-200';
+                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-2xl border-2 bg-emerald-950/95 border-emerald-400 text-emerald-200';
             } else {
-                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base shadow-2xl border-2 bg-slate-900/90 border-amber-400 text-amber-200';
+                toastAlert.className = 'px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-2xl border-2 bg-slate-900/95 border-amber-400 text-amber-200';
             }
 
             toastTimeout = setTimeout(() => {
                 toastAlert.classList.add('hidden');
-            }, 3200);
+            }, 3400);
         }
 
         // ============================================================================
-        // 13. QUẢN LÝ THẮNG / THUA & RESET TRẬN MỚI VỚI MAP NGẪU NHIÊN
+        // 17. QUẢN LÝ THẮNG / THUA & RESET TRẬN MỚI VỚI ĐỊA HÌNH NGẪU NHIÊN
         // ============================================================================
         function triggerGameOver(isVictory) {
             gameState.isGameOver = true;
@@ -2201,18 +2624,18 @@
 
             if (isVictory) {
                 menuTitle.textContent = '🎉 CÂU TRỘM & TẨU THOÁT THÀNH CÔNG!';
-                menuSubtitle.textContent = `Bạn đã câu được ${fishing.caughtCount} con cá quý từ Dòng Sông 3D và vượt qua biên giới phía Bắc an toàn!`;
+                menuSubtitle.textContent = 'Bạn đã câu được cá quý từ dòng sông, vượt qua đồi núi & đội bảo vệ vây bắt để tới biên giới phía Bắc!';
                 resultBox.className = 'mb-6 p-5 rounded-2xl border-2 bg-emerald-950/80 border-emerald-400';
-                resultHeading.textContent = `🏆 CHIẾN THẮNG (${fishing.caughtCount} CÁ CHIẾN LỢI PHẨM)!`;
+                resultHeading.textContent = '🏆 CHIẾN THẮNG NGOẠN MỤC!';
                 resultHeading.className = 'text-2xl font-black mb-1 text-emerald-300';
-                resultDesc.textContent = `Xuất sắc! Biên bản mới chỉ lập được ${Math.floor(gameState.citationProgress)}%. Nhấn nút bên dưới để trải nghiệm một bản đồ sông ngòi & đô thị ngẫu nhiên mới!`;
+                resultDesc.textContent = `Tuyệt vời! Tiến độ lập biên bản mới chỉ ở mức ${Math.floor(gameState.citationProgress)}%. Nhấn nút bên dưới để khám phá một địa hình đồi núi & nhà hoang ngẫu nhiên mới!`;
             } else {
-                menuTitle.textContent = '🚓 ĐÃ BỊ LẬP BIÊN BẢN 100%!';
-                menuSubtitle.textContent = 'Bảo vệ đã hoàn tất biên bản tịch thu cần câu và số cá của bạn!';
+                menuTitle.textContent = '🚓 ĐÃ BỊ THU HỒI CẦN CÂU 100%!';
+                menuSubtitle.textContent = 'Bảo vệ đã hoàn tất biên bản thu hồi cần câu và chiến lợi phẩm của bạn!';
                 resultBox.className = 'mb-6 p-5 rounded-2xl border-2 bg-rose-950/80 border-rose-500';
                 resultHeading.textContent = '❌ THẤT BẠI (BIÊN BẢN ĐẦY 100%)';
                 resultHeading.className = 'text-2xl font-black mb-1 text-rose-300';
-                resultDesc.textContent = 'Hãy tận dụng góc khuất của các tòa nhà hoặc núp cây thông để lách qua bảo vệ nhặt lại cần câu nhanh hơn nhé!';
+                resultDesc.textContent = 'Mẹo: Khi bị rơi cần, hãy nhấn phím [C] nằm rạp bò qua các bụi cỏ cao hoặc núp sau Nhà Hoang để lách qua mặt bảo vệ và thu hồi cần câu nhé!';
             }
 
             btnPlay.textContent = '🔁 CHƠI LẠI TRẬN MỚI (MAP NGẪU NHIÊN)';
@@ -2221,41 +2644,46 @@
         function resetGameWithNewMap() {
             cancelFishingCast();
 
-            // Reset chỉ số người chơi
-            player.pos.set(0, PLAYER_EYE_HEIGHT, 135);
+            generateProceduralWorld();
+
+            const startY = getTerrainHeight(0, 135) + STAND_EYE_HEIGHT;
+            player.pos.set(0, startY, 135);
             player.vel.set(0, 0, 0);
-            player.yaw = 0; // Nhìn thẳng về hướng Bắc (về phía Dòng Sông & Đích Bắc)
+            player.yaw = 0;
             player.pitch = 0;
+            player.currentEyeHeight = STAND_EYE_HEIGHT;
+            player.isProne = false;
             player.onGround = true;
             player.isSprinting = false;
             player.isClimbing = false;
             player.hasRod = true;
             player.hasCaughtFish = false;
-            player.inBush = false;
+            player.inCoverType = null;
             player.isStealthHidden = false;
             player.noiseExposedTimer = 0;
             player.rodPickupCooldown = 0;
 
             if (fppFishMesh) fppFishMesh.visible = false;
 
-            // Reset trạng thái trận đấu
             gameState.isGameOver = false;
             gameState.citationProgress = 0;
             gameState.isBeingCited = false;
             gameState.citingGuard = null;
+            gameState.swarmActive = false;
+            gameState.swarmLoseSightTimer = 0;
 
             droppedRodGroup.visible = false;
             citationPanel.classList.add('hidden');
+            swarmBanner.classList.add('hidden');
+            rodWorldMarker.classList.add('hidden');
             citationBar.style.width = '0%';
             citationPercent.textContent = '0%';
             resultBox.classList.add('hidden');
 
-            menuTitle.textContent = 'TRỘM CÁ TẨU THOÁT';
-            menuSubtitle.innerHTML = 'Hãy tiến ra <span class="text-sky-400 font-bold">Dòng Sông Voxel</span> ở giữa bản đồ, quăng cần câu trộm 1 chú cá quý rồi chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng ở Biên Giới Phía Bắc</span> trước khi 4 bảo vệ tóm gọn!';
+            menuTitle.textContent = 'TRỘM CÁ TẨU THOÁT 3D';
+            menuSubtitle.innerHTML = 'Băng qua <span class="text-emerald-400 font-bold">Đồi Núi Gồ Ghề & Thảm Cỏ Cao</span>, ra sông câu trộm 1 chú cá quý, ẩn nấp trong <span class="text-amber-300 font-bold">Nhà Hoang 2 Tầng</span> và chạy về <span class="text-amber-400 font-bold">Vạch Sáng Vàng Phía Bắc</span>!';
             btnPlay.textContent = '▶️ BẮT ĐẦU TRẬN ĐẤU (KHÓA CHUỘT)';
 
-            // Sinh lại bản đồ 400x400 ngẫu nhiên hoàn toàn mới
-            generateProceduralWorld();
             updateHUD();
         }
 
@@ -2269,7 +2697,7 @@
         }
 
         // ============================================================================
-        // 14. SỰ KIỆN CHUỘT (POINTER LOCK), CLICK CÂU CÁ & BÀN PHÍM
+        // 18. SỰ KIỆN CHUỘT (POINTER LOCK), PHÍM C NẰM RẠP & CÂU CÁ
         // ============================================================================
         function setupEventListeners() {
             btnPlay.addEventListener('click', () => {
@@ -2306,7 +2734,6 @@
                 }
             });
 
-            // Click chuột trái khi đang khóa chuột để Quăng Câu / Giật Cá
             window.addEventListener('mousedown', (e) => {
                 if (!gameState.isRunning || gameState.isGameOver) return;
                 if (e.button === 0) {
@@ -2330,6 +2757,10 @@
                 if (e.code === 'KeyF' && gameState.isRunning && !gameState.isGameOver) {
                     handleFishingAction();
                 }
+                if ((e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight') && gameState.isRunning && !gameState.isGameOver) {
+                    e.preventDefault();
+                    togglePronePosture();
+                }
                 if (e.code === 'KeyM') {
                     toggleMinimap();
                 }
@@ -2349,7 +2780,7 @@
         }
 
         // ============================================================================
-        // 15. VÒNG LẶP GAME CHÍNH (GAME LOOP)
+        // 19. VÒNG LẶP GAME CHÍNH (GAME LOOP)
         // ============================================================================
         function animate() {
             requestAnimationFrame(animate);
@@ -2372,6 +2803,8 @@
 
         window.onload = function () {
             initThreeJS();
+            const startY = getTerrainHeight(0, 135) + STAND_EYE_HEIGHT;
+            player.pos.set(0, startY, 135);
             animate();
         };
     </script>
